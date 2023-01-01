@@ -1,0 +1,251 @@
+package badger
+
+import (
+	"net/url"
+	"reflect"
+	"testing"
+
+	"github.com/dgraph-io/badger/v3"
+)
+
+func TestNewBadgerStorage(t *testing.T) {
+	type args struct {
+		path   string
+		logger Logger
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *BadgerStorage
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NewBadgerStorage(tt.args.path, tt.args.logger)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("NewBadgerStorage() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("NewBadgerStorage() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBadgerStorage_Init(t *testing.T) {
+	type fields struct {
+		opt *badger.Options
+		db  *badger.DB
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &BadgerStorage{
+				opt: tt.fields.opt,
+				db:  tt.fields.db,
+			}
+			if err := s.Init(); (err != nil) != tt.wantErr {
+				t.Errorf("BadgerStorage.Init() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestBadgerStorage_Close(t *testing.T) {
+	type fields struct {
+		opt *badger.Options
+		db  *badger.DB
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &BadgerStorage{
+				opt: tt.fields.opt,
+				db:  tt.fields.db,
+			}
+			if err := s.Close(); (err != nil) != tt.wantErr {
+				t.Errorf("BadgerStorage.Close() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestBadgerStorage_Clear(t *testing.T) {
+	type fields struct {
+		opt *badger.Options
+		db  *badger.DB
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &BadgerStorage{
+				opt: tt.fields.opt,
+				db:  tt.fields.db,
+			}
+			if err := s.Clear(); (err != nil) != tt.wantErr {
+				t.Errorf("BadgerStorage.Clear() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestBadgerStorage_Visited(t *testing.T) {
+	type fields struct {
+		opt *badger.Options
+		db  *badger.DB
+	}
+	type args struct {
+		requestID uint64
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &BadgerStorage{
+				opt: tt.fields.opt,
+				db:  tt.fields.db,
+			}
+			if err := s.Visited(tt.args.requestID); (err != nil) != tt.wantErr {
+				t.Errorf("BadgerStorage.Visited() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestBadgerStorage_IsVisited(t *testing.T) {
+	type fields struct {
+		opt *badger.Options
+		db  *badger.DB
+	}
+	type args struct {
+		requestID uint64
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    bool
+		wantErr bool
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &BadgerStorage{
+				opt: tt.fields.opt,
+				db:  tt.fields.db,
+			}
+			got, err := s.IsVisited(tt.args.requestID)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("BadgerStorage.IsVisited() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("BadgerStorage.IsVisited() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBadgerStorage_Cookies(t *testing.T) {
+	type fields struct {
+		opt *badger.Options
+		db  *badger.DB
+	}
+	type args struct {
+		u *url.URL
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   string
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &BadgerStorage{
+				opt: tt.fields.opt,
+				db:  tt.fields.db,
+			}
+			if got := s.Cookies(tt.args.u); got != tt.want {
+				t.Errorf("BadgerStorage.Cookies() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestBadgerStorage_SetCookies(t *testing.T) {
+	type fields struct {
+		opt *badger.Options
+		db  *badger.DB
+	}
+	type args struct {
+		u       *url.URL
+		cookies string
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &BadgerStorage{
+				opt: tt.fields.opt,
+				db:  tt.fields.db,
+			}
+			s.SetCookies(tt.args.u, tt.args.cookies)
+		})
+	}
+}
+
+func Test_putUint64(t *testing.T) {
+	type args struct {
+		i uint64
+	}
+	tests := []struct {
+		name string
+		args args
+		want []byte
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := putUint64(tt.args.i); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("putUint64() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

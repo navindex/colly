@@ -1,128 +1,99 @@
-// Copyright 2018 Adam Tauber
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package storage
 
 import (
+	"bytes"
+	"encoding/binary"
+	"encoding/gob"
+	"errors"
+	"fmt"
 	"net/http"
-	"net/http/cookiejar"
-	"net/url"
-	"strings"
-	"sync"
+	"time"
 )
 
-// Storage is an interface which handles Collector's internal data,
-// like visited urls and cookies.
-// The default Storage of the Collector is the InMemoryStorage.
-// Collector's storage can be changed by calling Collector.SetStorage()
-// function.
-type Storage interface {
-	// Init initializes the storage
-	Init() error
-	// Visited receives and stores a request ID that is visited by the Collector
-	Visited(requestID uint64) error
-	// IsVisited returns true if the request was visited before IsVisited
-	// is called
-	IsVisited(requestID uint64) (bool, error)
-	// Cookies retrieves stored cookies for a given host
-	Cookies(u *url.URL) string
-	// SetCookies stores cookies for a given host
-	SetCookies(u *url.URL, cookies string)
-}
+// ------------------------------------------------------------------------
 
-// InMemoryStorage is the default storage backend of colly.
-// InMemoryStorage keeps cookies and visited urls in memory
-// without persisting data on the disk.
-type InMemoryStorage struct {
-	visitedURLs map[uint64]bool
-	lock        *sync.RWMutex
-	jar         *cookiejar.Jar
-}
+// Errors
+var (
+	ErrNotImplemented = errors.New("feature not implemented")
+	ErrStorageEmpty   = errors.New("storage is empty")
+	ErrStorageFull    = errors.New("storage is full")
+	ErrStorageClosed  = errors.New("storage is closed")
+	ErrBlankPath      = errors.New("no storage path was given")
+	ErrBlankKey       = errors.New("no key was given")
+	ErrBlankTableName = errors.New("no table name was given")
+	ErrInvalidType    = errors.New("invalid storage type")
+	ErrStorageLimit   = errors.New("unable to connect to the database, storage limit exceeded")
+	ErrInvalidConn    = errors.New("invalid database connection")
+	ErrMissingParams  = errors.New("storage parameters are missing")
+	ErrNInvalidLength = errors.New("max queue length must be positive or zero for no limit")
+	ErrMissingCmd     = func(cmd string) error { return fmt.Errorf("%s command is missing", cmd) }
+)
 
-// Init initializes InMemoryStorage
-func (s *InMemoryStorage) Init() error {
-	if s.visitedURLs == nil {
-		s.visitedURLs = make(map[uint64]bool)
+// ------------------------------------------------------------------------
+
+// CookiesToBytes encodes an array of cookies to bytes.
+func CookiesToBytes(cookies []*http.Cookie) ([]byte, error) {
+	// Extract the cookies
+	c := []http.Cookie{}
+	for i := range cookies {
+		c = append(c, *cookies[i])
 	}
-	if s.lock == nil {
-		s.lock = &sync.RWMutex{}
+
+	// Encode
+	b := &bytes.Buffer{}
+	err := gob.NewEncoder(b).Encode(c)
+
+	return b.Bytes(), err
+}
+
+// ------------------------------------------------------------------------
+
+// BytesToCookies retrieves a previously encoded array of cookies from bytes.
+func BytesToCookies(data []byte) ([]*http.Cookie, error) {
+	// Convert byte slice to io.Reader
+	reader := bytes.NewReader(data)
+
+	// Decode to a slice of cookies
+	c := []http.Cookie{}
+	err := gob.NewDecoder(reader).Decode(&c)
+	if err != nil {
+		return nil, err
 	}
-	if s.jar == nil {
-		var err error
-		s.jar, err = cookiejar.New(nil)
-		return err
+
+	// Create a slice of pointers
+	cookies := []*http.Cookie{}
+	for i := range c {
+		cookies = append(cookies, &c[i])
 	}
-	return nil
+
+	return cookies, nil
 }
 
-// Visited implements Storage.Visited()
-func (s *InMemoryStorage) Visited(requestID uint64) error {
-	s.lock.Lock()
-	s.visitedURLs[requestID] = true
-	s.lock.Unlock()
-	return nil
+// ------------------------------------------------------------------------
+
+// Uint64ToBytes converts uint64 to bytes.
+func Uint64ToBytes(i uint64) []byte {
+	b := []byte{}
+	binary.BigEndian.PutUint64(b, i)
+
+	return b
 }
 
-// IsVisited implements Storage.IsVisited()
-func (s *InMemoryStorage) IsVisited(requestID uint64) (bool, error) {
-	s.lock.RLock()
-	visited := s.visitedURLs[requestID]
-	s.lock.RUnlock()
-	return visited, nil
+// ------------------------------------------------------------------------
+
+// BytesToUint64 converts bytes to uint64.
+func BytesToUint64(b []byte) uint64 {
+	return binary.BigEndian.Uint64(b)
 }
 
-// Cookies implements Storage.Cookies()
-func (s *InMemoryStorage) Cookies(u *url.URL) string {
-	return StringifyCookies(s.jar.Cookies(u))
-}
+// ------------------------------------------------------------------------
 
-// SetCookies implements Storage.SetCookies()
-func (s *InMemoryStorage) SetCookies(u *url.URL, cookies string) {
-	s.jar.SetCookies(u, UnstringifyCookies(cookies))
-}
-
-// Close implements Storage.Close()
-func (s *InMemoryStorage) Close() error {
-	return nil
-}
-
-// StringifyCookies serializes list of http.Cookies to string
-func StringifyCookies(cookies []*http.Cookie) string {
-	// Stringify cookies.
-	cs := make([]string, len(cookies))
-	for i, c := range cookies {
-		cs[i] = c.String()
+// CurrentTimeToBytes converts the current timestamp to bytes.
+func CurrentTimeToBytes() []byte {
+	t := time.Now().Unix()
+	if t < 0 {
+		return nil
 	}
-	return strings.Join(cs, "\n")
-}
 
-// UnstringifyCookies deserializes a cookie string to http.Cookies
-func UnstringifyCookies(s string) []*http.Cookie {
-	h := http.Header{}
-	for _, c := range strings.Split(s, "\n") {
-		h.Add("Set-Cookie", c)
-	}
-	r := http.Response{Header: h}
-	return r.Cookies()
-}
-
-// ContainsCookie checks if a cookie name is represented in cookies
-func ContainsCookie(cookies []*http.Cookie, name string) bool {
-	for _, c := range cookies {
-		if c.Name == name {
-			return true
-		}
-	}
-	return false
+	return Uint64ToBytes(uint64(t))
 }
