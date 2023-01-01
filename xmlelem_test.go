@@ -1,30 +1,23 @@
-// Copyright 2018 Adam Tauber
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package colly_test
 
 import (
-	"github.com/antchfx/htmlquery"
-	"github.com/gocolly/colly/v2"
+	"io"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/antchfx/htmlquery"
+	"github.com/gocolly/colly/v2"
+	"golang.org/x/net/html"
 )
 
-// Borrowed from http://infohost.nmt.edu/tcc/help/pubs/xhtml/example.html
-// Added attributes to the `<li>` tags for testing purposes
-const htmlPage = `
+// ------------------------------------------------------------------------
+
+func setupXMLElementTestCase() (*colly.Response, *html.Node) {
+	// Borrowed from http://infohost.nmt.edu/tcc/help/pubs/xhtml/example.html
+	// Added attributes to the `<li>` tags for testing purposes
+	htmlPage := `
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
  "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
@@ -47,10 +40,21 @@ const htmlPage = `
   </body>
 </html>
 `
-
-func TestAttr(t *testing.T) {
-	resp := &colly.Response{StatusCode: 200, Body: []byte(htmlPage)}
+	resp := &colly.Response{
+		Response: &http.Response{
+			StatusCode: 200,
+			Body:       io.NopCloser(strings.NewReader(htmlPage)),
+		},
+	}
 	doc, _ := htmlquery.Parse(strings.NewReader(htmlPage))
+
+	return resp, doc
+}
+
+// ------------------------------------------------------------------------
+
+func TestXMLElement_Attr(t *testing.T) {
+	resp, doc := setupXMLElementTestCase()
 	xmlNode := htmlquery.FindOne(doc, "/html")
 	xmlElem := colly.NewXMLElementFromHTMLNode(resp, xmlNode)
 
@@ -63,9 +67,10 @@ func TestAttr(t *testing.T) {
 	}
 }
 
-func TestChildText(t *testing.T) {
-	resp := &colly.Response{StatusCode: 200, Body: []byte(htmlPage)}
-	doc, _ := htmlquery.Parse(strings.NewReader(htmlPage))
+// ------------------------------------------------------------------------
+
+func TestXMLElement_ChildText(t *testing.T) {
+	resp, doc := setupXMLElementTestCase()
 	xmlNode := htmlquery.FindOne(doc, "/html")
 	xmlElem := colly.NewXMLElementFromHTMLNode(resp, xmlNode)
 
@@ -77,9 +82,10 @@ func TestChildText(t *testing.T) {
 	}
 }
 
-func TestChildTexts(t *testing.T) {
-	resp := &colly.Response{StatusCode: 200, Body: []byte(htmlPage)}
-	doc, _ := htmlquery.Parse(strings.NewReader(htmlPage))
+// ------------------------------------------------------------------------
+
+func TestXMLElement_ChildTexts(t *testing.T) {
+	resp, doc := setupXMLElementTestCase()
 	xmlNode := htmlquery.FindOne(doc, "/html")
 	xmlElem := colly.NewXMLElementFromHTMLNode(resp, xmlNode)
 	expected := []string{"First bullet of a bullet list.", "This is the second bullet."}
@@ -90,9 +96,11 @@ func TestChildTexts(t *testing.T) {
 		t.Fatalf("failed child tag test: %v != \"\"", texts)
 	}
 }
-func TestChildAttr(t *testing.T) {
-	resp := &colly.Response{StatusCode: 200, Body: []byte(htmlPage)}
-	doc, _ := htmlquery.Parse(strings.NewReader(htmlPage))
+
+// ------------------------------------------------------------------------
+
+func TestXMLElement_ChildAttr(t *testing.T) {
+	resp, doc := setupXMLElementTestCase()
 	xmlNode := htmlquery.FindOne(doc, "/html")
 	xmlElem := colly.NewXMLElementFromHTMLNode(resp, xmlNode)
 
@@ -104,9 +112,10 @@ func TestChildAttr(t *testing.T) {
 	}
 }
 
-func TestChildAttrs(t *testing.T) {
-	resp := &colly.Response{StatusCode: 200, Body: []byte(htmlPage)}
-	doc, _ := htmlquery.Parse(strings.NewReader(htmlPage))
+// ------------------------------------------------------------------------
+
+func TestXMLElement_ChildAttrs(t *testing.T) {
+	resp, doc := setupXMLElementTestCase()
 	xmlNode := htmlquery.FindOne(doc, "/html")
 	xmlElem := colly.NewXMLElementFromHTMLNode(resp, xmlNode)
 
