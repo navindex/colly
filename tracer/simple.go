@@ -40,10 +40,10 @@ func NewSimpleTracer() *simpleTracer {
 
 // ------------------------------------------------------------------------
 
-// WithTrace returns a new context based on the provided parent context.
+// WithContext returns a new context based on the provided parent context.
 // HTTP client requests made with the returned context will use the provided trace hooks,
 // in addition to any previous hooks registered with ctx.
 // Any hooks defined in the provided trace will be called first.
-func (t *simpleTracer) WithTrace(ctx context.Context) context.Context {
+func (t *simpleTracer) WithContext(ctx context.Context) context.Context {
 	return httptrace.WithClientTrace(ctx, t.ct)
 }
