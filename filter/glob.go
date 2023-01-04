@@ -2,23 +2,24 @@ package filter
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
+
+	"github.com/gobwas/glob"
 )
 
 // ------------------------------------------------------------------------
 
-// regexpFilter represents a number of regular expression filters
-type regexpFilter struct {
-	re []*regexp.Regexp
+// globFilter represents a number of glob expression filters
+type globFilter struct {
+	globs []glob.Glob
 }
 
 // ------------------------------------------------------------------------
 
-// NewRegexpFilter returns a pointer to a newly created regular expression filter.
-func NewRegexpFilter(filters []string) (*regexpFilter, error) {
-	f := &regexpFilter{
-		re: []*regexp.Regexp{},
+// NewGlobFilter returns a pointer to a newly created glob pattern filter.
+func NewGlobFilter(filters []string) (*globFilter, error) {
+	f := &globFilter{
+		globs: []glob.Glob{},
 	}
 
 	errList := []string{}
@@ -29,13 +30,13 @@ func NewRegexpFilter(filters []string) (*regexpFilter, error) {
 			continue
 		}
 
-		re, err := regexp.Compile(fltr)
+		glb, err := glob.Compile(fltr)
 		if err != nil {
 			errList = append(errList, fltr)
 			continue
 		}
 
-		f.re = append(f.re, re)
+		f.globs = append(f.globs, glb)
 	}
 
 	if len(errList) > 0 {
@@ -48,9 +49,9 @@ func NewRegexpFilter(filters []string) (*regexpFilter, error) {
 // ------------------------------------------------------------------------
 
 // Match reports whether the string str contains any match of the filter.
-func (f *regexpFilter) Match(str string) bool {
-	for _, re := range f.re {
-		if re.MatchString(str) {
+func (f *globFilter) Match(str string) bool {
+	for _, glb := range f.globs {
+		if glb.Match(str) {
 			return true
 		}
 	}
