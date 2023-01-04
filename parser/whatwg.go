@@ -33,3 +33,15 @@ func (p *whatwgParser) Parse(rawURL string) (*url.URL, error) {
 
 	return url.Parse(wurl.Href(false))
 }
+
+// ------------------------------------------------------------------------
+
+// ParseRef parses a raw url with a reference into a URL structure.
+func (p *whatwgParser) ParseRef(rawURL string, ref string) (*url.URL, error) {
+	wurl, err := p.parser.ParseRef(rawURL, ref)
+	if err != nil {
+		return nil, err
+	}
+
+	return url.Parse(wurl.Href(false))
+}
