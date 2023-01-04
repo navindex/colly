@@ -12,6 +12,14 @@ import (
 
 // ------------------------------------------------------------------------
 
+// BaseStorage is an interface which handles Collector's internal data.
+type BaseStorage interface {
+	Clear() error // Clear removes all entries from the storage.
+	Close() error // Close closes the storage ensures writes all pending updates.
+}
+
+// ------------------------------------------------------------------------
+
 // Errors
 var (
 	ErrNotImplemented = errors.New("feature not implemented")
