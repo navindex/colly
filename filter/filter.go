@@ -72,7 +72,34 @@ func (f *Filter) Append(method Method, scope Scope, engine Engine) {
 
 // ------------------------------------------------------------------------
 
+// Remove removes all filters with a specific method and scope.
+func (f *Filter) Remove(method Method, scope Scope) {
+	var items []*filterItem
+
+	if method == INCLUDE {
+		items = f.incl
+	} else {
+		items = f.excl
+	}
+
+	newItems := []*filterItem{}
+	for _, item := range items {
+		if item.scope != scope {
+			newItems = append(newItems, item)
+		}
+	}
+
+	if method == INCLUDE {
+		f.incl = newItems
+	} else {
+		f.excl = newItems
+	}
+}
+
+// ------------------------------------------------------------------------
+
 // Match reports whether the URL contains any match of the filter.
+// Excluding filters will be evaluated before including filters.
 func (f *Filter) Match(URL *url.URL) bool {
 	segments := map[Scope]string{}
 
