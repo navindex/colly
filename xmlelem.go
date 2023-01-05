@@ -12,11 +12,11 @@ import (
 
 // XMLElement is the representation of a XML tag.
 type XMLElement struct {
-	Name       string      // Name is the name of the tag.
-	Text       string      // Text is the inner text of the element.
-	Response   *Response   // Response is the Response object of the element's XML document.
-	DOM        interface{} // DOM is the DOM object of the page. DOM is relative to the current XMLElement and is either a html.Node or xmlquery.Node.
-	attributes interface{}
+	Name       string    // Name is the name of the tag.
+	Text       string    // Text is the inner text of the element.
+	Response   *Response // Response is the Response object of the element's XML document.
+	DOM        any       // DOM is the DOM object of the page. DOM is relative to the current XMLElement and is either a html.Node or xmlquery.Node.
+	attributes any
 	isHTML     bool
 }
 
