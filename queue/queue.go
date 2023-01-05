@@ -1,170 +1,171 @@
 package queue
 
 import (
-	"net/url"
+	"errors"
 	"sync"
 
-	whatwgUrl "github.com/nlnwa/whatwg-url/url"
-
 	"github.com/gocolly/colly/v2"
+	"github.com/gocolly/colly/v2/domain"
+	"github.com/gocolly/colly/v2/storage/mem"
 )
 
-const stop = true
+// ------------------------------------------------------------------------
 
-var urlParser = whatwgUrl.NewParser(whatwgUrl.WithPercentEncodeSinglePercentSign())
-
-// Storage is the interface of the queue's storage backend
-// Storage must be concurrently safe for multiple goroutines.
-type Storage interface {
-	// Init initializes the storage
-	Init() error
-	// AddRequest adds a serialized request to the queue
-	AddRequest([]byte) error
-	// GetRequest pops the next request from the queue
-	// or returns error if the queue is empty
-	GetRequest() ([]byte, error)
-	// QueueSize returns with the size of the queue
-	QueueSize() (int, error)
+// WorkerPool is a collection of methods to control a worker pool.
+type WorkerPool interface {
+	Start()              // Start gets the worker pool ready to process the tasks. It should be called only once.
+	Stop()               // Stop instructs the worker pool to stop processing tasks. It should be called only once.
+	AddWork(Work)        // AddWork adds a task to the worker pool.
+	Size() (uint, error) // Size returns the number of tasks in the worker pool.
+	IsEmpty() bool       // IsEmpty returns true if the queue is empty.
 }
 
-// Queue is a request queue which uses a Collector to consume
-// requests in multiple threads
-type Queue struct {
-	// Threads defines the number of consumer threads
-	Threads int
-	storage Storage
-	wake    chan struct{}
-	mut     sync.Mutex // guards wake and running
-	running bool
+// queue implements a domain.Queue interface
+type queue struct {
+	stg       domain.QueueStorage // thread safe queue storage
+	processor domain.JobHandler   // responsible for processing the jobs
+	threads   uint                // the number of processing threads
+	abort     bool                // if true, instructs the queue to stop the job processing
+	lock      *sync.Mutex         // guards wake and running ???
+	wakeChan  chan struct{}
 }
 
-// InMemoryQueueStorage is the default implementation of the Storage interface.
-// InMemoryQueueStorage holds the request queue in memory.
-type InMemoryQueueStorage struct {
-	// MaxSize defines the capacity of the queue.
-	// New requests are discarded if the queue size reaches MaxSize
-	MaxSize int
-	lock    *sync.RWMutex
-	size    int
-	first   *inMemoryQueueItem
-	last    *inMemoryQueueItem
-}
+// ------------------------------------------------------------------------
 
-type inMemoryQueueItem struct {
-	Request []byte
-	Next    *inMemoryQueueItem
-}
+const maxLength uint = 100000
 
-// New creates a new queue with a Storage specified in argument
-// A standard InMemoryQueueStorage is used if Storage argument is nil.
-func New(threads int, s Storage) (*Queue, error) {
-	if s == nil {
-		s = &InMemoryQueueStorage{MaxSize: 100000}
+// ------------------------------------------------------------------------
+
+var (
+	ErrAlreadyStarted = errors.New("the queue is already being processed")
+)
+
+// ------------------------------------------------------------------------
+
+// New returns a pointer to a newly created request queue.
+// A memory storage is used if no storage was given.
+// A WHATWGP parser is used if no parser was given.
+func New(threads uint, stg domain.QueueStorage) (*queue, error) {
+	if stg == nil {
+		var err error
+		if stg, err = mem.NewQueueStorage(maxLength); err != nil {
+			return nil, err
+		}
 	}
-	if err := s.Init(); err != nil {
-		return nil, err
-	}
-	return &Queue{
-		Threads: threads,
-		storage: s,
-		running: true,
+
+	return &queue{
+		threads: threads,
+		stg:     stg,
+		lock:    &sync.Mutex{},
+		abort:   false,
 	}, nil
 }
 
-// IsEmpty returns true if the queue is empty
-func (q *Queue) IsEmpty() bool {
-	s, _ := q.Size()
-	return s == 0
+// ------------------------------------------------------------------------
+
+// Size returns the number of items in the queue.
+func (q *queue) Size() (uint, error) {
+	return q.stg.Len()
 }
 
-// AddURL adds a new URL to the queue
-func (q *Queue) AddURL(URL string) error {
-	u, err := urlParser.Parse(URL)
-	if err != nil {
-		return err
-	}
-	u2, err := url.Parse(u.Href(false))
-	if err != nil {
-		return err
-	}
-	r := &colly.Request{
-		URL:    u2,
-		Method: "GET",
-	}
-	d, err := r.Marshal()
-	if err != nil {
-		return err
-	}
-	return q.storage.AddRequest(d)
+// ------------------------------------------------------------------------
+
+// IsEmpty returns true if the queue is empty or an error occurred.
+func (q *queue) IsEmpty() bool {
+	s, err := q.Size()
+
+	return err != nil || s == 0
 }
 
-// AddRequest adds a new Request to the queue
-func (q *Queue) AddRequest(r *colly.Request) error {
-	q.mut.Lock()
-	waken := q.wake != nil
-	q.mut.Unlock()
-	if !waken {
-		return q.storeRequest(r)
-	}
-	err := q.storeRequest(r)
+// ------------------------------------------------------------------------
+
+// AddItem adds a new item to the queue.
+func (q *queue) AddItem(item domain.Job) error {
+	// Convert the item to bytes
+	bytes, err := item.Encode()
 	if err != nil {
 		return err
 	}
-	q.wake <- struct{}{}
+
+	// Add it to the queue
+	if err := q.stg.Push(bytes); err != nil {
+		return err
+	}
+
+	// Check if the processor is running
+	q.lock.Lock()
+	processing := q.wakeChan != nil
+	q.lock.Unlock()
+
+	// ???
+	if !processing {
+		q.wakeChan <- struct{}{}
+	}
+
 	return nil
 }
 
-func (q *Queue) storeRequest(r *colly.Request) error {
-	d, err := r.Marshal()
-	if err != nil {
+// ------------------------------------------------------------------------
+
+// Run starts consumer threads and calls the Collector to perform requests.
+// Run blocks while the queue has active requests.
+// The underlying Storage must not be used directly while Run blocks.
+func (q *queue) Start(c *colly.Collector) error {
+	if err := q.prepareProcess(); err != nil {
 		return err
 	}
-	return q.storage.AddRequest(d)
-}
 
-// Size returns the size of the queue
-func (q *Queue) Size() (int, error) {
-	return q.storage.QueueSize()
-}
+	requestChan := make(chan *colly.Request)
+	defer close(requestChan)
 
-// Run starts consumer threads and calls the Collector
-// to perform requests. Run blocks while the queue has active requests
-// The given Storage must not be used directly while Run blocks.
-func (q *Queue) Run(c *colly.Collector) error {
-	q.mut.Lock()
-	if q.wake != nil && q.running == true {
-		q.mut.Unlock()
-		panic("cannot call duplicate Queue.Run")
+	completeChan, errChan := make(chan struct{}), make(chan error, 1)
+
+	for i := 0; i < q.threads; i++ {
+		go independentRunner(requestChan, completeChan)
 	}
-	q.wake = make(chan struct{})
-	q.running = true
-	q.mut.Unlock()
 
-	requestc := make(chan *colly.Request)
-	complete, errc := make(chan struct{}), make(chan error, 1)
-	for i := 0; i < q.Threads; i++ {
-		go independentRunner(requestc, complete)
-	}
-	go q.loop(c, requestc, complete, errc)
-	defer close(requestc)
+	go q.loop(c, requestChan, completeChan, errChan)
+
 	return <-errc
 }
 
-// Stop will stop the running queue
-func (q *Queue) Stop() {
-	q.mut.Lock()
-	q.running = false
-	q.mut.Unlock()
+// ------------------------------------------------------------------------
+
+// Stop will stop the running queue processor.
+func (q *queue) Stop() {
+	q.lock.Lock()
+	q.abort = true
+	q.lock.Unlock()
 }
 
-func (q *Queue) loop(c *colly.Collector, requestc chan<- *colly.Request, complete <-chan struct{}, errc chan<- error) {
+// ------------------------------------------------------------------------
+
+func (q *queue) prepareProcess() error {
+	q.lock.Lock()
+	defer q.lock.Unlock()
+
+	if q.wakeChan != nil && q.abort == false {
+		return ErrAlreadyStarted
+	}
+
+	q.wakeChan = make(chan struct{})
+	q.abort = false
+
+	return nil
+}
+
+// ------------------------------------------------------------------------
+
+func (q *queue) loop(c *colly.Collector, requestc chan<- *colly.Request, complete <-chan struct{}, errc chan<- error) {
 	var active int
+
 	for {
-		size, err := q.storage.QueueSize()
+		size, err := q.storage.Len()
 		if err != nil {
 			errc <- err
 			break
 		}
+
 		if size == 0 && active == 0 || !q.running {
 			// Terminate when
 			//   1. No active requests
@@ -172,6 +173,7 @@ func (q *Queue) loop(c *colly.Collector, requestc chan<- *colly.Request, complet
 			errc <- nil
 			break
 		}
+
 		sent := requestc
 		var req *colly.Request
 		if size > 0 {
@@ -184,6 +186,7 @@ func (q *Queue) loop(c *colly.Collector, requestc chan<- *colly.Request, complet
 		} else {
 			sent = nil
 		}
+
 	Sent:
 		for {
 			select {
@@ -202,66 +205,4 @@ func (q *Queue) loop(c *colly.Collector, requestc chan<- *colly.Request, complet
 			}
 		}
 	}
-}
-
-func independentRunner(requestc <-chan *colly.Request, complete chan<- struct{}) {
-	for req := range requestc {
-		req.Do()
-		complete <- struct{}{}
-	}
-}
-
-func (q *Queue) loadRequest(c *colly.Collector) (*colly.Request, error) {
-	buf, err := q.storage.GetRequest()
-	if err != nil {
-		return nil, err
-	}
-	copied := make([]byte, len(buf))
-	copy(copied, buf)
-	return c.UnmarshalRequest(copied)
-}
-
-// Init implements Storage.Init() function
-func (q *InMemoryQueueStorage) Init() error {
-	q.lock = &sync.RWMutex{}
-	return nil
-}
-
-// AddRequest implements Storage.AddRequest() function
-func (q *InMemoryQueueStorage) AddRequest(r []byte) error {
-	q.lock.Lock()
-	defer q.lock.Unlock()
-	// Discard URLs if size limit exceeded
-	if q.MaxSize > 0 && q.size >= q.MaxSize {
-		return colly.ErrQueueFull
-	}
-	i := &inMemoryQueueItem{Request: r}
-	if q.first == nil {
-		q.first = i
-	} else {
-		q.last.Next = i
-	}
-	q.last = i
-	q.size++
-	return nil
-}
-
-// GetRequest implements Storage.GetRequest() function
-func (q *InMemoryQueueStorage) GetRequest() ([]byte, error) {
-	q.lock.Lock()
-	defer q.lock.Unlock()
-	if q.size == 0 {
-		return nil, nil
-	}
-	r := q.first.Request
-	q.first = q.first.Next
-	q.size--
-	return r, nil
-}
-
-// QueueSize implements Storage.QueueSize() function
-func (q *InMemoryQueueStorage) QueueSize() (int, error) {
-	q.lock.Lock()
-	defer q.lock.Unlock()
-	return q.size, nil
 }
