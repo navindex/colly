@@ -211,7 +211,7 @@ func (s *stgBase) Len() (uint, error) {
 
 // ------------------------------------------------------------------------
 
-func (s *stgBase) Cmd(cmd string, args ...interface{}) error {
+func (s *stgBase) Cmd(cmd string, args ...any) error {
 	stmt, present := s.stmts[cmd]
 	if !present {
 		return storage.ErrMissingCmd(cmd)
@@ -226,7 +226,7 @@ func (s *stgBase) Cmd(cmd string, args ...interface{}) error {
 
 // Exec executes a query without returning any rows.
 // The args are for any placeholder parameters in the query.
-// func (s *stgBase) Exec(query string, args ...interface{}) (sql.Result, error) {
+// func (s *stgBase) Exec(query string, args ...any) (sql.Result, error) {
 // 	return s.db.dbh.Exec(query, args...)
 // }
 
@@ -234,7 +234,7 @@ func (s *stgBase) Cmd(cmd string, args ...interface{}) error {
 
 // Exec executes a query without returning any rows.
 // The args are for any placeholder parameters in the query.
-// func (s *stgBase) QueryRow(query string, args ...interface{}) *sql.Row {
+// func (s *stgBase) QueryRow(query string, args ...any) *sql.Row {
 // 	return s.db.dbh.QueryRow(query, args...)
 // }
 
