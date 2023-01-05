@@ -1,4 +1,11 @@
-# Heavily Modified Colly
+# Heavily Refactored Colly
+
+## Attention: Work in Progress
+
+This repository is under extensive rework. It is not fully tested, and the code contains known issues.
+The estimated release date is 1st of March, 2023.
+
+<!---
 
 Lightning Fast and Elegant Scraping Framework for Gophers
 
@@ -119,3 +126,5 @@ Support this project by becoming a sponsor. Your logo will show up here with a l
 ## License
 
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fgocolly%2Fcolly.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fgocolly%2Fcolly?ref=badge_large)
+
+--->
