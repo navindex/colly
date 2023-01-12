@@ -10,7 +10,7 @@ import (
 
 // In-memory visit storage
 type stgVisit struct {
-	lock   *sync.Mutex
+	lock   *sync.RWMutex
 	visits map[uint64]bool
 }
 
@@ -19,7 +19,7 @@ type stgVisit struct {
 // NewVisitStorage returns a pointer to a newly created in-memory visit storage.
 func NewVisitStorage() *stgVisit {
 	return &stgVisit{
-		lock:   &sync.Mutex{},
+		lock:   &sync.RWMutex{},
 		visits: map[uint64]bool{},
 	}
 }
@@ -64,6 +64,9 @@ func (s *stgVisit) Len() (uint, error) {
 		return 0, storage.ErrStorageClosed
 	}
 
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
 	return uint(len(s.visits)), nil
 }
 
@@ -90,6 +93,9 @@ func (s *stgVisit) IsVisited(requestID uint64) (bool, error) {
 	if s.visits == nil {
 		return false, storage.ErrStorageClosed
 	}
+
+	s.lock.RLock()
+	defer s.lock.RUnlock()
 
 	return s.visits[requestID], nil
 }

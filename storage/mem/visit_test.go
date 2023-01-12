@@ -16,7 +16,7 @@ func TestNewVisitStorage(t *testing.T) {
 		{
 			name: "default",
 			want: &stgVisit{
-				lock:   &sync.Mutex{},
+				lock:   &sync.RWMutex{},
 				visits: map[uint64]bool{},
 			},
 		},
@@ -34,7 +34,7 @@ func TestNewVisitStorage(t *testing.T) {
 
 func Test_stgVisit_Close(t *testing.T) {
 	type fields struct {
-		lock   *sync.Mutex
+		lock   *sync.RWMutex
 		visits map[uint64]bool
 	}
 	tests := []struct {
@@ -46,11 +46,11 @@ func Test_stgVisit_Close(t *testing.T) {
 		{
 			name: "default",
 			fields: fields{
-				lock:   &sync.Mutex{},
+				lock:   &sync.RWMutex{},
 				visits: map[uint64]bool{},
 			},
 			want: &stgVisit{
-				lock:   &sync.Mutex{},
+				lock:   &sync.RWMutex{},
 				visits: nil,
 			},
 			wantErr: false,
@@ -58,11 +58,11 @@ func Test_stgVisit_Close(t *testing.T) {
 		{
 			name: "closed",
 			fields: fields{
-				lock:   &sync.Mutex{},
+				lock:   &sync.RWMutex{},
 				visits: nil,
 			},
 			want: &stgVisit{
-				lock:   &sync.Mutex{},
+				lock:   &sync.RWMutex{},
 				visits: nil,
 			},
 			wantErr: true,
@@ -88,7 +88,7 @@ func Test_stgVisit_Close(t *testing.T) {
 
 func Test_stgVisit_Clear(t *testing.T) {
 	type fields struct {
-		lock   *sync.Mutex
+		lock   *sync.RWMutex
 		visits map[uint64]bool
 	}
 	tests := []struct {
@@ -100,14 +100,14 @@ func Test_stgVisit_Clear(t *testing.T) {
 		{
 			name: "default",
 			fields: fields{
-				lock: &sync.Mutex{},
+				lock: &sync.RWMutex{},
 				visits: map[uint64]bool{
 					1:  true,
 					42: true,
 				},
 			},
 			want: &stgVisit{
-				lock:   &sync.Mutex{},
+				lock:   &sync.RWMutex{},
 				visits: map[uint64]bool{},
 			},
 			wantErr: false,
@@ -115,11 +115,11 @@ func Test_stgVisit_Clear(t *testing.T) {
 		{
 			name: "closed",
 			fields: fields{
-				lock:   &sync.Mutex{},
+				lock:   &sync.RWMutex{},
 				visits: nil,
 			},
 			want: &stgVisit{
-				lock:   &sync.Mutex{},
+				lock:   &sync.RWMutex{},
 				visits: nil,
 			},
 			wantErr: true,
@@ -145,7 +145,7 @@ func Test_stgVisit_Clear(t *testing.T) {
 
 func Test_stgVisit_Len(t *testing.T) {
 	type fields struct {
-		lock   *sync.Mutex
+		lock   *sync.RWMutex
 		visits map[uint64]bool
 	}
 	tests := []struct {
@@ -157,7 +157,7 @@ func Test_stgVisit_Len(t *testing.T) {
 		{
 			name: "default",
 			fields: fields{
-				lock: &sync.Mutex{},
+				lock: &sync.RWMutex{},
 				visits: map[uint64]bool{
 					1:  true,
 					42: true,
@@ -169,7 +169,7 @@ func Test_stgVisit_Len(t *testing.T) {
 		{
 			name: "closed",
 			fields: fields{
-				lock:   &sync.Mutex{},
+				lock:   &sync.RWMutex{},
 				visits: nil,
 			},
 			want:    0,
@@ -197,7 +197,7 @@ func Test_stgVisit_Len(t *testing.T) {
 
 func Test_stgVisit_SetVisited(t *testing.T) {
 	type fields struct {
-		lock   *sync.Mutex
+		lock   *sync.RWMutex
 		visits map[uint64]bool
 	}
 	type args struct {
@@ -213,7 +213,7 @@ func Test_stgVisit_SetVisited(t *testing.T) {
 		{
 			name: "default",
 			fields: fields{
-				lock: &sync.Mutex{},
+				lock: &sync.RWMutex{},
 				visits: map[uint64]bool{
 					1:  true,
 					99: true,
@@ -223,7 +223,7 @@ func Test_stgVisit_SetVisited(t *testing.T) {
 				requestID: 42,
 			},
 			want: &stgVisit{
-				lock: &sync.Mutex{},
+				lock: &sync.RWMutex{},
 				visits: map[uint64]bool{
 					1:  true,
 					42: true,
@@ -235,14 +235,14 @@ func Test_stgVisit_SetVisited(t *testing.T) {
 		{
 			name: "closed",
 			fields: fields{
-				lock:   &sync.Mutex{},
+				lock:   &sync.RWMutex{},
 				visits: nil,
 			},
 			args: args{
 				requestID: 42,
 			},
 			want: &stgVisit{
-				lock:   &sync.Mutex{},
+				lock:   &sync.RWMutex{},
 				visits: nil,
 			},
 			wantErr: true,
@@ -268,7 +268,7 @@ func Test_stgVisit_SetVisited(t *testing.T) {
 
 func Test_stgVisit_IsVisited(t *testing.T) {
 	type fields struct {
-		lock   *sync.Mutex
+		lock   *sync.RWMutex
 		visits map[uint64]bool
 	}
 	type args struct {
@@ -284,7 +284,7 @@ func Test_stgVisit_IsVisited(t *testing.T) {
 		{
 			name: "visited",
 			fields: fields{
-				lock: &sync.Mutex{},
+				lock: &sync.RWMutex{},
 				visits: map[uint64]bool{
 					1:  true,
 					42: true,
@@ -299,7 +299,7 @@ func Test_stgVisit_IsVisited(t *testing.T) {
 		{
 			name: "not visited",
 			fields: fields{
-				lock: &sync.Mutex{},
+				lock: &sync.RWMutex{},
 				visits: map[uint64]bool{
 					1:  true,
 					42: true,
@@ -314,7 +314,7 @@ func Test_stgVisit_IsVisited(t *testing.T) {
 		{
 			name: "closed",
 			fields: fields{
-				lock:   &sync.Mutex{},
+				lock:   &sync.RWMutex{},
 				visits: nil,
 			},
 			args: args{
