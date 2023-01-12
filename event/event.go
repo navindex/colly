@@ -47,6 +47,7 @@ func NewEventList() *eventList {
 // If no index was given, the new item will be attached to the end of the list.
 func (el *eventList) Add(event uint8, arg string, item any, index ...int) {
 	el.lock.Lock()
+	defer el.lock.Unlock()
 
 	// Create event if missing
 	if _, present := el.events[event]; !present {
@@ -54,8 +55,6 @@ func (el *eventList) Add(event uint8, arg string, item any, index ...int) {
 	}
 
 	el.events[event].addItem(arg, item, index...)
-
-	el.lock.Unlock()
 }
 
 // ------------------------------------------------------------------------
