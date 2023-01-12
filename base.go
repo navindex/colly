@@ -32,30 +32,6 @@ type Cache interface {
 	Save(key string, value []byte) error
 }
 
-// Debugger represnts a debugging backends that processes events.
-type Debugger interface {
-	Event() // Event receives a new collector event.
-}
-
-// Event represents an action inside a collector.
-type Event struct {
-	Type        string            // Type is the type of the event
-	RequestID   uint32            // RequestID identifies the HTTP request of the Event
-	CollectorID uint32            // CollectorID identifies the collector of the Event
-	Values      map[string]string // Values contains the event's key-value pairs.
-}
-
-// Callback functions
-type (
-	RequestCallback         func(*Request)         // RequestCallback is a type alias for OnRequest callback functions.
-	ResponseHeadersCallback func(*Response)        // ResponseHeadersCallback is a type alias for OnResponseHeaders callback functions.
-	ResponseCallback        func(*Response)        // ResponseCallback is a type alias for OnResponse callback functions.
-	HTMLCallback            func(*HTMLElement)     // HTMLCallback is a type alias for OnHTML callback functions.
-	XMLCallback             func(*XMLElement)      // XMLCallback is a type alias for OnXML callback functions.
-	ErrorCallback           func(*Response, error) // ErrorCallback is a type alias for OnError callback functions.
-	ScrapedCallback         func(*Response)        // ScrapedCallback is a type alias for OnScraped callback functions.
-)
-
 // MaxVisitReachedError is the error type for already visited URLs.
 // It's returned synchronously by Visit when the URL passed to Visit is already visited.
 // When already visited URL is encountered after following
