@@ -1,12 +1,5 @@
 package badger
 
-import (
-	"net/http"
-	"net/url"
-
-	"github.com/gocolly/colly/v2/storage"
-)
-
 // ------------------------------------------------------------------------
 
 type stgCookie struct {
@@ -59,24 +52,21 @@ func (s *stgCookie) Len() (uint, error) {
 
 // ------------------------------------------------------------------------
 
-// SetCookies stores cookies for a given host.
-func (s *stgCookie) SetCookies(u *url.URL, cookies []*http.Cookie) error {
-	data, err := storage.CookiesToBytes(cookies)
-	if err != nil {
-		return err
-	}
-
-	return s.s.Set([]byte(u.Host), data)
+// Set stores cookies for a given host.
+func (s *stgCookie) Set(key string, cookies []byte) error {
+	return s.s.Set([]byte(key), cookies)
 }
 
 // ------------------------------------------------------------------------
 
-// Cookies retrieves stored cookies for a given host.
-func (s *stgCookie) Cookies(u *url.URL) ([]*http.Cookie, error) {
-	data, err := s.s.Get([]byte(u.Host))
-	if err != nil {
-		return nil, err
-	}
+// Get retrieves stored cookies for a given host.
+func (s *stgCookie) Get(key string) ([]byte, error) {
+	return s.s.Get([]byte(key))
+}
 
-	return storage.BytesToCookies(data)
+// ------------------------------------------------------------------------
+
+// Remove deletes stored cookies for a given host.
+func (s *stgCookie) Remove(key string) error {
+	return s.s.DropPrefix([]byte(key))
 }

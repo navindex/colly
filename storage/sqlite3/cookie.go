@@ -1,13 +1,10 @@
 package sqlite3
 
-import (
-	"net/http"
-	"net/url"
-
-	"github.com/gocolly/colly/v2/storage"
-)
-
 // ------------------------------------------------------------------------
+
+type Storable interface {
+	BinaryEncode() ([]byte, error)
+}
 
 type stgCookie struct {
 	s *stgBase
@@ -74,33 +71,38 @@ func (s *stgCookie) Len() (uint, error) {
 
 // ------------------------------------------------------------------------
 
-// SetCookies stores cookies for a given host.
-func (s *stgCookie) SetCookies(u *url.URL, cookies []*http.Cookie) error {
-	data, err := storage.CookiesToBytes(cookies)
-	if err != nil {
-		return err
-	}
-
+// Set stores cookies for a given host.
+func (s *stgCookie) Set(key string, data []byte) error {
 	s.s.lock.Lock()
 	defer s.s.lock.Unlock()
 
-	_, err = s.s.stmts["insert"].Exec(u.Host, data)
+	_, err := s.s.stmts["insert"].Exec(key, data)
 
 	return err
 }
 
 // ------------------------------------------------------------------------
 
-// Cookies retrieves stored cookies for a given host.
-func (s *stgCookie) Cookies(u *url.URL) ([]*http.Cookie, error) {
+// Get retrieves stored cookies for a given host.
+func (s *stgCookie) Get(key string) ([]byte, error) {
 	var data = []byte{}
 
 	s.s.lock.Lock()
 	defer s.s.lock.Unlock()
 
-	if err := s.s.stmts["select"].QueryRow(u.Host).Scan(&data); err != nil {
-		return nil, err
-	}
+	err := s.s.stmts["select"].QueryRow(key).Scan(&data)
 
-	return storage.BytesToCookies(data)
+	return data, err
+}
+
+// ------------------------------------------------------------------------
+
+// Remove deletes stored cookies for a given host.
+func (s *stgCookie) Remove(key string) error {
+	s.s.lock.Lock()
+	defer s.s.lock.Unlock()
+
+	_, err := s.s.stmts["delete"].Exec(key)
+
+	return err
 }

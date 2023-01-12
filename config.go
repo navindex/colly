@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gocolly/colly/v2/cookiejar"
 	"github.com/gocolly/colly/v2/filter"
 	"github.com/gocolly/colly/v2/tracer"
 )
@@ -63,7 +64,7 @@ type CollectorConfig struct {
 	// Cache attaches a cache service to keep a local copy of the responses.
 	Cache `json:"cache" bson:"cache,omitempty"`
 	// TODO create CookieJar interface
-	CookieJar `json:"cookie_jar" bson:"cookie_jar,omitempty"`
+	CookieJar http.CookieJar `json:"cookie_jar" bson:"cookie_jar,omitempty"`
 	// Tracer attaches a tracing service to enable capturing and reporting request performance for crawler tuning.
 	Tracer `json:"tracer" bson:"tracer,omitempty"`
 	// TODO create logger interface
@@ -178,9 +179,12 @@ var (
 // NewConfig returns a pointer to a newly created collector configuration settings.
 // Same default values are set.
 func NewConfig() *CollectorConfig {
+	jar, _ := cookiejar.New(nil, nil)
+
 	return &CollectorConfig{
 		ParseStatusCallback: parseSuccessResponse,
 		FollowRedirects:     true,
+		CookieJar:           jar,
 		// FIXME Cache: ...,
 	}
 }
@@ -208,7 +212,7 @@ func (c *CollectorConfig) ProcessEnv(env Environment, envMap map[string]EnvConfi
 
 // SetAllowedDomains is a convenience method to set the allowed domains.
 func (c *CollectorConfig) SetAllowedDomains(domains []string) error {
-	f, err := filter.NewGlobFilter(domains)
+	f, err := filter.NewGlobFilterItem(domains)
 	if err != nil {
 		return err
 	}
@@ -228,7 +232,7 @@ func (c *CollectorConfig) SetAllowedDomains(domains []string) error {
 
 // SetDisallowedDomains is a convenience method to set the disallowed domains.
 func (c *CollectorConfig) SetDisallowedDomains(domains []string) error {
-	f, err := filter.NewGlobFilter(domains)
+	f, err := filter.NewGlobFilterItem(domains)
 	if err != nil {
 		return err
 	}

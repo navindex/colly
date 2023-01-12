@@ -2,7 +2,6 @@ package sqlite3
 
 import (
 	"database/sql"
-	"errors"
 	"strings"
 	"sync"
 
@@ -244,7 +243,7 @@ func (s *stgBase) addStatements(commands map[string]string) error {
 	s.stmts = map[string]*sql.Stmt{}
 
 	if len(commands) == 0 {
-		return errors.New("missing statements")
+		return storage.ErrMissingStatement
 	}
 
 	for key, cmd := range commands {
