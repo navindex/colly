@@ -16,8 +16,8 @@ type globFilter struct {
 
 // ------------------------------------------------------------------------
 
-// NewGlobFilter returns a pointer to a newly created glob pattern filter.
-func NewGlobFilter(filters []string) (*globFilter, error) {
+// NewGlobFilterItem returns a pointer to a newly created glob pattern filter.
+func NewGlobFilterItem(filters []string) (*globFilter, error) {
 	f := &globFilter{
 		globs: []glob.Glob{},
 	}

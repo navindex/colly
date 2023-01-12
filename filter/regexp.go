@@ -15,8 +15,8 @@ type regexpFilter struct {
 
 // ------------------------------------------------------------------------
 
-// NewRegexpFilter returns a pointer to a newly created regular expression filter.
-func NewRegexpFilter(filters []string) (*regexpFilter, error) {
+// NewRegexpFilterItem returns a pointer to a newly created regular expression filter.
+func NewRegexpFilterItem(filters []string) (*regexpFilter, error) {
 	f := &regexpFilter{
 		re: []*regexp.Regexp{},
 	}
