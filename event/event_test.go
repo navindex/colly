@@ -1388,13 +1388,12 @@ func Test_eventList_Get(t *testing.T) {
 	}
 	type args struct {
 		event uint8
-		arg   string
 	}
 	tests := []struct {
 		name   string
 		fields fields
 		args   args
-		want   []any
+		want   map[string][]any
 	}{
 		{
 			name: "empty",
@@ -1407,14 +1406,8 @@ func Test_eventList_Get(t *testing.T) {
 								sorted:   []any{},
 							},
 							"arg_2": {
-								original: map[int]any{
-									6:   "six",
-									42:  "forty-two",
-									200: "two hundred",
-									7:   "seven",
-									99:  "ninety-nine",
-								},
-								sorted: []any{"six", "seven", "forty-two", "ninety-nine", "two hundred"},
+								original: map[int]any{},
+								sorted:   []any{},
 							},
 						},
 						counter: 0,
@@ -1436,16 +1429,15 @@ func Test_eventList_Get(t *testing.T) {
 								sorted:   []any{},
 							},
 						},
-						counter: 0,
+						counter: 5,
 					},
 				},
 				lock: &sync.RWMutex{},
 			},
 			args: args{
 				event: 10,
-				arg:   "arg_1",
 			},
-			want: []any{},
+			want: map[string][]any{},
 		},
 		{
 			name: "not empty",
@@ -1483,11 +1475,152 @@ func Test_eventList_Get(t *testing.T) {
 								sorted: []any{"six", "seven", "forty-two", "ninety-nine", "two hundred"},
 							},
 							"arg_B": {
+								original: map[int]any{
+									16:  "sixteen",
+									22:  "twenty-two",
+									500: "five hundred",
+									37:  "thirty-seven",
+									89:  "eighty-nine",
+								},
+								sorted: []any{"sixteen", "twenty-two", "thirty-seven", "eighty-nine", "five hundred"},
+							},
+						},
+						counter: 5,
+					},
+				},
+				lock: &sync.RWMutex{},
+			},
+			args: args{
+				event: 20,
+			},
+			want: map[string][]any{
+				"arg_A": {"six", "seven", "forty-two", "ninety-nine", "two hundred"},
+				"arg_B": {"sixteen", "twenty-two", "thirty-seven", "eighty-nine", "five hundred"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			el := &eventList{
+				events: tt.fields.events,
+				lock:   tt.fields.lock,
+			}
+			if got := el.Get(tt.args.event); !(len(got) == 0 && len(tt.want) == 0) && !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("eventList.Get() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// ------------------------------------------------------------------------
+
+func Test_eventList_GetArg(t *testing.T) {
+	type fields struct {
+		events map[uint8]*argList
+		lock   *sync.RWMutex
+	}
+	type args struct {
+		event uint8
+		arg   string
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+		want   []any
+	}{
+		{
+			name: "empty",
+			fields: fields{
+				events: map[uint8]*argList{
+					10: {
+						args: map[string]*itemList{
+							"arg_1": {
+								original: map[int]any{},
+								sorted:   []any{},
+							},
+							"arg_2": {
+								original: map[int]any{
+									6:   "six",
+									42:  "forty-two",
+									200: "two hundred",
+									7:   "seven",
+									99:  "ninety-nine",
+								},
+								sorted: []any{"six", "seven", "forty-two", "ninety-nine", "two hundred"},
+							},
+						},
+						counter: 5,
+					},
+					20: {
+						args: map[string]*itemList{
+							"arg_A": {
+								original: map[int]any{
+									6:   "six",
+									42:  "forty-two",
+									200: "two hundred",
+									7:   "seven",
+									99:  "ninety-nine",
+								},
+								sorted: []any{"six", "seven", "forty-two", "ninety-nine", "two hundred"},
+							},
+							"arg_B": {
 								original: map[int]any{},
 								sorted:   []any{},
 							},
 						},
-						counter: 0,
+						counter: 5,
+					},
+				},
+				lock: &sync.RWMutex{},
+			},
+			args: args{
+				event: 10,
+				arg:   "arg_1",
+			},
+			want: []any{},
+		},
+		{
+			name: "not empty",
+			fields: fields{
+				events: map[uint8]*argList{
+					10: {
+						args: map[string]*itemList{
+							"arg_1": {
+								original: map[int]any{},
+								sorted:   []any{},
+							},
+							"arg_2": {
+								original: map[int]any{
+									6:   "six",
+									42:  "forty-two",
+									200: "two hundred",
+									7:   "seven",
+									99:  "ninety-nine",
+								},
+								sorted: []any{"six", "seven", "forty-two", "ninety-nine", "two hundred"},
+							},
+						},
+						counter: 5,
+					},
+					20: {
+						args: map[string]*itemList{
+							"arg_A": {
+								original: map[int]any{
+									6:   "six",
+									42:  "forty-two",
+									200: "two hundred",
+									7:   "seven",
+									99:  "ninety-nine",
+								},
+								sorted: []any{"six", "seven", "forty-two", "ninety-nine", "two hundred"},
+							},
+							"arg_B": {
+								original: map[int]any{},
+								sorted:   []any{},
+							},
+						},
+						counter: 5,
 					},
 				},
 				lock: &sync.RWMutex{},
@@ -1505,8 +1638,8 @@ func Test_eventList_Get(t *testing.T) {
 				events: tt.fields.events,
 				lock:   tt.fields.lock,
 			}
-			if got := el.Get(tt.args.event, tt.args.arg); !(len(got) == 0 && len(tt.want) == 0) && !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("eventList.Get() = %v, want %v", got, tt.want)
+			if got := el.GetArg(tt.args.event, tt.args.arg); !(len(got) == 0 && len(tt.want) == 0) && !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("eventList.GetArg() = %v, want %v", got, tt.want)
 			}
 		})
 	}

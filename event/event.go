@@ -70,17 +70,34 @@ func (el *eventList) Remove(event uint8, arg string, index ...int) {
 
 // ------------------------------------------------------------------------
 
-// Get returns a sorted slice of event argument items.
-func (el *eventList) Get(event uint8, arg string) []any {
+// Get returns a sorted slice of all event items, mapped by arguments.
+func (el *eventList) Get(event uint8) map[string][]any {
 	el.lock.RLock()
 	defer el.lock.RUnlock()
 
-	// Nothing to return if the event or argument doesn't exist or empty
-	if al, present := el.events[event]; !present || al.isEmpty(arg) {
+	// Nothing to return if the event doesn't exist
+	al, present := el.events[event]
+	if !present {
 		return nil
 	}
 
-	return el.events[event].args[arg].sorted
+	return al.getAll()
+}
+
+// ------------------------------------------------------------------------
+
+// Get returns a sorted slice of event argument items.
+func (el *eventList) GetArg(event uint8, arg string) []any {
+	el.lock.RLock()
+	defer el.lock.RUnlock()
+
+	// Nothing to return if the event doesn't exist
+	al, present := el.events[event]
+	if !present {
+		return nil
+	}
+
+	return al.getArg(arg)
 }
 
 // ------------------------------------------------------------------------
@@ -166,6 +183,34 @@ func (al *argList) remove(arg string, keys ...int) {
 			al.counter--
 		}
 	}
+}
+
+// --------------------------------
+
+func (al *argList) getArg(arg string) []any {
+	if al.isEmpty(arg) {
+		return nil
+	}
+
+	return al.args[arg].sorted
+}
+
+// --------------------------------
+
+func (al *argList) getAll() map[string][]any {
+	if al.isEmpty() {
+		return nil
+	}
+
+	var items = map[string][]any{}
+
+	for arg, il := range al.args {
+		if !il.isEmpty() {
+			items[arg] = il.sorted
+		}
+	}
+
+	return items
 }
 
 // --------------------------------
