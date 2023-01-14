@@ -1,6 +1,8 @@
-package cookiejar
+package colly
 
 import (
+	"bytes"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"net"
@@ -31,12 +33,37 @@ type Jar struct {
 	// storage saves the set of entries, keyed by their eTLD+1 and subkeyed by
 	// their name/domain/path.
 	storage CookieStorage
-	// entries map[string]map[string]entry
 
 	// nextSeqNum is the next sequence number assigned to a new cookie
 	// created SetCookies.
 	nextSeqNum uint64
 }
+
+// entry is the internal representation of a cookie.
+// This struct type is not used outside of this package per se, but the exported
+// fields are those of RFC 6265.
+type entry struct {
+	Name       string    `json:"name" bson:"name,omitempty"`
+	Value      string    `json:"value" bson:"value,omitempty"`
+	Domain     string    `json:"domain" bson:"domain,omitempty"`
+	Path       string    `json:"path" bson:"path,omitempty"`
+	SameSite   string    `json:"same_site" bson:"same_site,omitempty"`
+	Secure     bool      `json:"secure" bson:"secure,omitempty"`
+	HttpOnly   bool      `json:"http_only" bson:"http_only,omitempty"`
+	Persistent bool      `json:"persistent" bson:"persistent,omitempty"`
+	HostOnly   bool      `json:"host_only" bson:"host_only,omitempty"`
+	Expires    time.Time `json:"expires" bson:"expires,omitempty"`
+	Creation   time.Time `json:"creation" bson:"creation,omitempty"`
+	LastAccess time.Time `json:"last_access" bson:"last_access,omitempty"`
+
+	// seqNum is a sequence number so that Cookies returns cookies in a
+	// deterministic order, even for cookies that have equal Path length and
+	// equal Creation time. This simplifies testing.
+	seqNum uint64 `json:"seq_num" bson:"seq_num,omitempty"`
+}
+
+// entries is the internal representation of a submap.
+type entries map[string]entry
 
 // ------------------------------------------------------------------------
 
@@ -67,15 +94,23 @@ var endOfTime = time.Date(9999, 12, 31, 23, 59, 59, 0, time.UTC)
 
 // ------------------------------------------------------------------------
 
-// New returns a pointer to a newly created cookie jar.
+// NewCookieJar returns a pointer to a newly created cookie jar.
 // A nil *Options is equivalent to a zero Options.
 // If no storage was given, an in-memory cookie jar will be returned.
-func New(storage CookieStorage, o *cookiejar.Options) (http.CookieJar, error) {
+func NewCookieJar(storage CookieStorage, o *cookiejar.Options) (http.CookieJar, error) {
 	if storage == nil {
 		return cookiejar.New(o)
 	}
 
-	return new(storage, o)
+	jar := &Jar{
+		storage: storage,
+	}
+
+	if o != nil {
+		jar.psList = o.PublicSuffixList
+	}
+
+	return jar, nil
 }
 
 // ------------------------------------------------------------------------
@@ -93,21 +128,6 @@ func (j *Jar) Cookies(u *url.URL) (cookies []*http.Cookie) {
 // It does nothing if the URL's scheme is not HTTP or HTTPS.
 func (j *Jar) SetCookies(u *url.URL, cookies []*http.Cookie) {
 	j.setCookies(u, cookies, time.Now())
-}
-
-// ------------------------------------------------------------------------
-
-// New returns a pointer to a newly created cookie jar that based on an external storage.
-func new(storage CookieStorage, o *cookiejar.Options) (*Jar, error) {
-	jar := &Jar{
-		storage: storage,
-	}
-
-	if o != nil {
-		jar.psList = o.PublicSuffixList
-	}
-
-	return jar, nil
 }
 
 // ------------------------------------------------------------------------
@@ -331,6 +351,109 @@ func (j *Jar) newEntry(c *http.Cookie, now time.Time, defPath, host string) (e e
 
 // ------------------------------------------------------------------------
 
+// domainAndType determines the cookie's domain and hostOnly attribute.
+func (j *Jar) domainAndType(host, domain string) (string, bool, error) {
+	if domain == "" {
+		// No domain attribute in the SetCookie header indicates a
+		// host cookie.
+		return host, true, nil
+	}
+
+	if isIP(host) {
+		// RFC 6265 is not super clear here, a sensible interpretation
+		// is that cookies with an IP address in the domain-attribute
+		// are allowed.
+
+		// RFC 6265 section 5.2.3 mandates to strip an optional leading
+		// dot in the domain-attribute before processing the cookie.
+		//
+		// Most browsers don't do that for IP addresses, only curl
+		// version 7.54) and and IE (version 11) do not reject a
+		//     Set-Cookie: a=1; domain=.127.0.0.1
+		// This leading dot is optional and serves only as hint for
+		// humans to indicate that a cookie with "domain=.bbc.co.uk"
+		// would be sent to every subdomain of bbc.co.uk.
+		// It just doesn't make sense on IP addresses.
+		// The other processing and validation steps in RFC 6265 just
+		// collaps to:
+		if host != domain {
+			return "", false, errIllegalDomain
+		}
+
+		// According to RFC 6265 such cookies should be treated as
+		// domain cookies.
+		// As there are no subdomains of an IP address the treatment
+		// according to RFC 6265 would be exactly the same as that of
+		// a host-only cookie. Contemporary browsers (and curl) do
+		// allows such cookies but treat them as host-only cookies.
+		// So do we as it just doesn't make sense to label them as
+		// domain cookies when there is no domain; the whole notion of
+		// domain cookies requires a domain name to be well defined.
+		return host, true, nil
+	}
+
+	// From here on: If the cookie is valid, it is a domain cookie (with
+	// the one exception of a public suffix below).
+	// See RFC 6265 section 5.2.3.
+	if domain[0] == '.' {
+		domain = domain[1:]
+	}
+
+	if len(domain) == 0 || domain[0] == '.' {
+		// Received either "Domain=." or "Domain=..some.thing",
+		// both are illegal.
+		return "", false, errMalformedDomain
+	}
+
+	domain, isASCII := ascii.ToLower(domain)
+	if !isASCII {
+		// Received non-ASCII domain, e.g. "perché.com" instead of "xn--perch-fsa.com"
+		return "", false, errMalformedDomain
+	}
+
+	if domain[len(domain)-1] == '.' {
+		// We received stuff like "Domain=www.example.com.".
+		// Browsers do handle such stuff (actually differently) but
+		// RFC 6265 seems to be clear here (e.g. section 4.1.2.3) in
+		// requiring a reject.  4.1.2.3 is not normative, but
+		// "Domain Matching" (5.1.3) and "Canonicalized Host Names"
+		// (5.1.2) are.
+		return "", false, errMalformedDomain
+	}
+
+	// See RFC 6265 section 5.3 #5.
+	if j.psList != nil {
+		if ps := j.psList.PublicSuffix(domain); ps != "" && !hasDotSuffix(domain, ps) {
+			if host == domain {
+				// This is the one exception in which a cookie
+				// with a domain attribute is a host cookie.
+				return host, true, nil
+			}
+			return "", false, errIllegalDomain
+		}
+	}
+
+	// The domain must domain-match host: www.mycompany.com cannot
+	// set cookies for .ourcompetitors.com.
+	if host != domain && !hasDotSuffix(host, domain) {
+		return "", false, errIllegalDomain
+	}
+
+	return domain, false, nil
+}
+
+// ------------------------------------------------------------------------
+
+// BinaryEncode encodes the entry submap to bytes.
+func (e entries) BinaryEncode() ([]byte, error) {
+	b := &bytes.Buffer{}
+	err := gob.NewEncoder(b).Encode(e)
+
+	return b.Bytes(), err
+}
+
+// ------------------------------------------------------------------------
+
 // id returns the domain;path;name triple of e as an id.
 func (e *entry) id() string {
 	return fmt.Sprintf("%s;%s;%s", e.Domain, e.Path, e.Name)
@@ -477,99 +600,6 @@ func defaultPath(path string) string {
 
 // ------------------------------------------------------------------------
 
-// domainAndType determines the cookie's domain and hostOnly attribute.
-func (j *Jar) domainAndType(host, domain string) (string, bool, error) {
-	if domain == "" {
-		// No domain attribute in the SetCookie header indicates a
-		// host cookie.
-		return host, true, nil
-	}
-
-	if isIP(host) {
-		// RFC 6265 is not super clear here, a sensible interpretation
-		// is that cookies with an IP address in the domain-attribute
-		// are allowed.
-
-		// RFC 6265 section 5.2.3 mandates to strip an optional leading
-		// dot in the domain-attribute before processing the cookie.
-		//
-		// Most browsers don't do that for IP addresses, only curl
-		// version 7.54) and and IE (version 11) do not reject a
-		//     Set-Cookie: a=1; domain=.127.0.0.1
-		// This leading dot is optional and serves only as hint for
-		// humans to indicate that a cookie with "domain=.bbc.co.uk"
-		// would be sent to every subdomain of bbc.co.uk.
-		// It just doesn't make sense on IP addresses.
-		// The other processing and validation steps in RFC 6265 just
-		// collaps to:
-		if host != domain {
-			return "", false, errIllegalDomain
-		}
-
-		// According to RFC 6265 such cookies should be treated as
-		// domain cookies.
-		// As there are no subdomains of an IP address the treatment
-		// according to RFC 6265 would be exactly the same as that of
-		// a host-only cookie. Contemporary browsers (and curl) do
-		// allows such cookies but treat them as host-only cookies.
-		// So do we as it just doesn't make sense to label them as
-		// domain cookies when there is no domain; the whole notion of
-		// domain cookies requires a domain name to be well defined.
-		return host, true, nil
-	}
-
-	// From here on: If the cookie is valid, it is a domain cookie (with
-	// the one exception of a public suffix below).
-	// See RFC 6265 section 5.2.3.
-	if domain[0] == '.' {
-		domain = domain[1:]
-	}
-
-	if len(domain) == 0 || domain[0] == '.' {
-		// Received either "Domain=." or "Domain=..some.thing",
-		// both are illegal.
-		return "", false, errMalformedDomain
-	}
-
-	domain, isASCII := ascii.ToLower(domain)
-	if !isASCII {
-		// Received non-ASCII domain, e.g. "perché.com" instead of "xn--perch-fsa.com"
-		return "", false, errMalformedDomain
-	}
-
-	if domain[len(domain)-1] == '.' {
-		// We received stuff like "Domain=www.example.com.".
-		// Browsers do handle such stuff (actually differently) but
-		// RFC 6265 seems to be clear here (e.g. section 4.1.2.3) in
-		// requiring a reject.  4.1.2.3 is not normative, but
-		// "Domain Matching" (5.1.3) and "Canonicalized Host Names"
-		// (5.1.2) are.
-		return "", false, errMalformedDomain
-	}
-
-	// See RFC 6265 section 5.3 #5.
-	if j.psList != nil {
-		if ps := j.psList.PublicSuffix(domain); ps != "" && !hasDotSuffix(domain, ps) {
-			if host == domain {
-				// This is the one exception in which a cookie
-				// with a domain attribute is a host cookie.
-				return host, true, nil
-			}
-			return "", false, errIllegalDomain
-		}
-	}
-
-	// The domain must domain-match host: www.mycompany.com cannot
-	// set cookies for .ourcompetitors.com.
-	if host != domain && !hasDotSuffix(host, domain) {
-		return "", false, errIllegalDomain
-	}
-
-	return domain, false, nil
-}
-
-// ------------------------------------------------------------------------
-
 // encode encodes a string as specified in section 6.3 and prepends prefix to
 // the result.
 //
@@ -694,4 +724,18 @@ func toASCII(s string) (string, error) {
 		}
 	}
 	return strings.Join(labels, "."), nil
+}
+
+// ------------------------------------------------------------------------
+
+// DecodeBinaryToEntries encodes the entry submap to bytes.
+func DecodeBinaryToEntries(data []byte) (entries, error) {
+	// Convert byte slice to io.Reader
+	reader := bytes.NewReader(data)
+
+	// Decode to a slice of cookies
+	var e entries
+	err := gob.NewDecoder(reader).Decode(&e)
+
+	return e, err
 }
