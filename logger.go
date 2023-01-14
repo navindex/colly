@@ -156,18 +156,6 @@ func NewStdLogger(dest io.Writer, prefix string, flag int) *stdLogger {
 	}
 }
 
-// LogEvent logs a logger event.
-func (l *stdLogger) LogEvent(level LogLevel, e *LoggerEvent) {
-	i := atomic.AddInt32(&l.counter, 1)
-	l.l.Printf("%s: [%06d] %d [%6d - %s] %q (%s)\n", logLevelNames[level], i, e.CollectorID, e.RequestID, e.Type, e.Values, time.Since(l.start))
-}
-
-// LogError logs an error.
-func (l *stdLogger) LogError(level LogLevel, e error) {
-	i := atomic.AddInt32(&l.counter, 1)
-	l.l.Printf("%s: [%06d]  %s (%s)\n", logLevelNames[level], i, e.Error(), time.Since(l.start))
-}
-
 // ------------------------------------------------------------------------
 
 // NewWebLogger returns a pointer to a newly created web logger.
@@ -188,6 +176,22 @@ func NewWebLogger(address string) *webLogger {
 
 	return w
 }
+
+// ------------------------------------------------------------------------
+
+// LogEvent logs a logger event.
+func (l *stdLogger) LogEvent(level LogLevel, e *LoggerEvent) {
+	i := atomic.AddInt32(&l.counter, 1)
+	l.l.Printf("%s: [%06d] %d [%6d - %s] %q (%s)\n", logLevelNames[level], i, e.CollectorID, e.RequestID, e.Type, e.Values, time.Since(l.start))
+}
+
+// LogError logs an error.
+func (l *stdLogger) LogError(level LogLevel, e error) {
+	i := atomic.AddInt32(&l.counter, 1)
+	l.l.Printf("%s: [%06d]  %s (%s)\n", logLevelNames[level], i, e.Error(), time.Since(l.start))
+}
+
+// ------------------------------------------------------------------------
 
 // LogEvent logs an event.
 func (w *webLogger) LogEvent(level LogLevel, e *LoggerEvent) {

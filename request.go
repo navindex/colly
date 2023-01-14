@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/gob"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -12,7 +13,7 @@ import (
 
 // Request is an extended HTTP request made by a Collector.
 type Request struct {
-	ID     uint64           `json:"id" bson:"id,omitempty"`                     // ID is the unique identifier of the request.
+	ID     uint32           `json:"id" bson:"id,omitempty"`                     // ID is the unique identifier of the request.
 	Depth  uint16           `json:"depth" bson:"depth,omitempty"`               // Depth is the number of the parents of the request.
 	Req    *http.Request    `json:"http_request" bson:"http_request,omitempty"` // Req is the embedded HTTP request.
 	Ctx    *context.Context `json:"context" bson:"context,omitempty"`           // Ctx carries values between request and response.
@@ -22,7 +23,7 @@ type Request struct {
 
 	collector *Collector
 	abort     bool
-	// baseURL   *url.URL
+	baseURL   *url.URL
 }
 
 // type requestHandler struct{}

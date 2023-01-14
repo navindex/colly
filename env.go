@@ -46,8 +46,6 @@ func NewEnvFromMap(prefix string, values map[string]string, dict map[string]stri
 	return env
 }
 
-// ------------------------------------------------------------------------
-
 // NewEnvFromOS returns a pointer to a newly created environment structure.
 // It is based on the OS environment settings where the keys will be filtered by a prefix.
 // An optional dictionary can be given to convert the keys.
@@ -66,8 +64,6 @@ func NewEnvFromOS(prefix string, dict map[string]string) *environment {
 
 	return NewEnvFromMap(prefix, values, dict)
 }
-
-// ------------------------------------------------------------------------
 
 // NewEnvFromFile returns a pointer to a newly created environment structure.
 // It is based on a content of an (tipycally .env) file where the keys will be filtered by a prefix.
@@ -93,8 +89,6 @@ func (e *environment) Set(key string, value string) {
 	e.values[key] = value
 }
 
-// ------------------------------------------------------------------------
-
 // SetPrefixed sets a value named by the key if the key starts with the prefix.
 // It overrides any existing value stored with the same key.
 func (e *environment) SetPrefixed(key, value string) {
@@ -105,14 +99,10 @@ func (e *environment) SetPrefixed(key, value string) {
 	e.Set(key[len(e.prefix):], value)
 }
 
-// ------------------------------------------------------------------------
-
 // Unset unsets a value named by the key.
 func (e *environment) Unset(key string) {
 	delete(e.values, key)
 }
-
-// ------------------------------------------------------------------------
 
 // SetDictionary sets the dictionary that will be used to convert the keys.
 func (e *environment) SetDictionary(dict map[string]string) {
@@ -123,14 +113,10 @@ func (e *environment) SetDictionary(dict map[string]string) {
 	e.dict = dict
 }
 
-// ------------------------------------------------------------------------
-
 // SetPrefix sets the prefix that will be used to check the keys in SetPrefixed method.
 func (e *environment) SetPrefix(prefix string) {
 	e.prefix = prefix
 }
-
-// ------------------------------------------------------------------------
 
 // Values returns the key/value pairs stored in the environment structure.
 func (e *environment) Values() map[string]string {
