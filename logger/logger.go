@@ -4,7 +4,8 @@ package logger
 
 // Logger represents a logger that processes events.
 type Logger interface {
-	Log(level Level, e *Event) // Log logs an event.
+	LogEvent(level Level, e *Event) // LogEvent logs an event.
+	LogError(level Level, e error)  // LogError logs an error.
 }
 
 // A Level is a logging priority. Higher levels are more important.

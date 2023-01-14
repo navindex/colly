@@ -1,12 +1,17 @@
 package colly
 
 import (
+	"context"
+	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
 	"github.com/gocolly/colly/v2/cookiejar"
 	"github.com/gocolly/colly/v2/filter"
+	"github.com/gocolly/colly/v2/logger"
+	"github.com/gocolly/colly/v2/parser"
 	"github.com/gocolly/colly/v2/tracer"
 )
 
@@ -15,6 +20,17 @@ import (
 // Environment represents a collection of environment variables.
 type Environment interface {
 	Values() map[string]string // Values returns the key/value pairs stored in the environment structure.
+}
+
+// Parser is an URL parser.
+type Parser interface {
+	Parse(rawUrl string) (*url.URL, error)         // Parse parses a raw URL into a URL structure.
+	ParseRef(rawUrl, ref string) (*url.URL, error) // ParseRef parses a raw url with a reference into a URL structure.
+}
+
+// Tracer provides a contract to manage an http trace.
+type Tracer interface {
+	WithContext(ctx context.Context) context.Context // WithContext returns a new context based on the provided parent context.
 }
 
 type (
@@ -65,10 +81,12 @@ type CollectorConfig struct {
 	Cache `json:"cache" bson:"cache,omitempty"`
 	// TODO create CookieJar interface
 	CookieJar http.CookieJar `json:"cookie_jar" bson:"cookie_jar,omitempty"`
+	// Parser represents an URL parser service.
+	Parser `json:"parser" bson:"parser,omitempty"`
 	// Tracer attaches a tracing service to enable capturing and reporting request performance for crawler tuning.
 	Tracer `json:"tracer" bson:"tracer,omitempty"`
-	// TODO create logger interface
-	Logger `json:"logger" bson:"logger,omitempty"`
+	// Logger logs the collector events.
+	logger.Logger `json:"logger" bson:"logger,omitempty"`
 	// GroupRules are additional instructions by matching filter criteria.
 	DomainRules []DomainRule `json:"domain_rules" bson:"domain_rules,omitempty"`
 }
@@ -95,21 +113,21 @@ var EnvMap = map[string]EnvConfigSetter{
 	"USER_AGENT":         func(c *CollectorConfig, val string) { c.UserAgentCallback = func(_ ...any) string { return val } },
 	"DETECT_CHARSET": func(c *CollectorConfig, val string) {
 		if b, err := StrToBool(val); err != nil {
-			c.Logger.Errorf("DETECT_CHARSET error: %v", err)
+			c.logError(logger.WARN_LEVEL, fmt.Errorf("DETECT_CHARSET error: %v", err))
 		} else {
 			c.DetectCharset = b
 		}
 	},
 	"IGNORE_ROBOTSTXT": func(c *CollectorConfig, val string) {
 		if b, err := StrToBool(val); err != nil {
-			c.Logger.Errorf("IGNORE_ROBOTSTXT error: %v", err)
+			c.logError(logger.WARN_LEVEL, fmt.Errorf("IGNORE_ROBOTSTXT error: %v", err))
 		} else {
 			c.IgnoreRobotsTxt = b
 		}
 	},
 	"FOLLOW_REDIRECTS": func(c *CollectorConfig, val string) {
 		if b, err := StrToBool(val); err != nil {
-			c.Logger.Errorf("FOLLOW_REDIRECTS error: %v", err)
+			c.logError(logger.WARN_LEVEL, fmt.Errorf("FOLLOW_REDIRECTS error: %v", err))
 		} else {
 			c.FollowRedirects = b
 		}
@@ -125,28 +143,28 @@ var EnvMap = map[string]EnvConfigSetter{
 	},
 	"MAX_BODY_SIZE": func(c *CollectorConfig, val string) {
 		if n, err := StrToUInt(val); err != nil {
-			c.Logger.Errorf("MAX_BODY_SIZE error: %v", err)
+			c.logError(logger.WARN_LEVEL, fmt.Errorf("MAX_BODY_SIZE error: %v", err))
 		} else {
 			c.MaxBodySize = n
 		}
 	},
 	"MAX_DEPTH": func(c *CollectorConfig, val string) {
 		if n, err := StrToUInt(val); err != nil {
-			c.Logger.Errorf("MAX_DEPTH error: %v", err)
+			c.logError(logger.WARN_LEVEL, fmt.Errorf("MAX_DEPTH error: %v", err))
 		} else {
 			c.MaxDepth = n
 		}
 	},
 	"MAX_REVISIT": func(c *CollectorConfig, val string) {
 		if n, err := StrToUInt(val); err != nil {
-			c.Logger.Errorf("MAX_REVISIT error: %v", err)
+			c.logError(logger.WARN_LEVEL, fmt.Errorf("MAX_REVISIT error: %v", err))
 		} else {
 			c.MaxRevisit = n
 		}
 	},
 	"PARSE_HTTP_ERROR_RESPONSE": func(c *CollectorConfig, val string) {
 		if b, err := StrToBool(val); err != nil {
-			c.Logger.Errorf("PARSE_HTTP_ERROR_RESPONSE error: %v", err)
+			c.logError(logger.WARN_LEVEL, fmt.Errorf("PARSE_HTTP_ERROR_RESPONSE error: %v", err))
 		} else {
 			fn := parseSuccessResponse
 			if b {
@@ -157,7 +175,7 @@ var EnvMap = map[string]EnvConfigSetter{
 	},
 	"TRACE_HTTP": func(c *CollectorConfig, val string) {
 		if b, err := StrToBool(val); err != nil {
-			c.Logger.Errorf("FOLLOW_REDIRECTS error: %v", err)
+			c.logError(logger.WARN_LEVEL, fmt.Errorf("FOLLOW_REDIRECTS error: %v", err))
 		} else {
 			var t Tracer
 			if b {
@@ -185,6 +203,7 @@ func NewConfig() *CollectorConfig {
 		ParseStatusCallback: parseSuccessResponse,
 		FollowRedirects:     true,
 		CookieJar:           jar,
+		Parser:              parser.NewWHATWGParser(),
 		// FIXME Cache: ...,
 	}
 }
@@ -200,7 +219,7 @@ func (c *CollectorConfig) ProcessEnv(env Environment, envMap map[string]EnvConfi
 	for k, v := range env.Values() {
 		fn, present := envMap[k]
 		if !present {
-			c.Logger.Errorf("ProcessEnv: unknown environment variable: %s", k)
+			c.logError(logger.WARN_LEVEL, fmt.Errorf("ProcessEnv: unknown environment variable: %s", k))
 			continue
 		}
 
@@ -228,8 +247,6 @@ func (c *CollectorConfig) SetAllowedDomains(domains []string) error {
 	return nil
 }
 
-// ------------------------------------------------------------------------
-
 // SetDisallowedDomains is a convenience method to set the disallowed domains.
 func (c *CollectorConfig) SetDisallowedDomains(domains []string) error {
 	f, err := filter.NewGlobFilterItem(domains)
@@ -255,16 +272,24 @@ func (c *CollectorConfig) ParseSuccessResponses() {
 	c.ParseStatusCallback = parseSuccessResponse
 }
 
-// ------------------------------------------------------------------------
-
 // ParseErrorResponse is a convenience method to enable parsing only the HTTP error responses.
 func (c *CollectorConfig) ParseErrorResponses() {
 	c.ParseStatusCallback = parseErrorResponse
 }
 
-// ------------------------------------------------------------------------
-
 // ParseAllResponse is a convenience method to enable parsing HTTP success and error responses.
 func (c *CollectorConfig) ParseAllResponses() {
 	c.ParseStatusCallback = parseAllResponse
+}
+
+// ------------------------------------------------------------------------
+
+func (c *CollectorConfig) hasLogger() bool {
+	return c.Logger != nil
+}
+
+func (c *CollectorConfig) logError(level logger.Level, err error) {
+	if c.hasLogger() {
+		c.Logger.LogError(level, err)
+	}
 }

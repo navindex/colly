@@ -34,8 +34,16 @@ func NewStdLogger(dest io.Writer, prefix string, flag int) *stdLogger {
 
 // ------------------------------------------------------------------------
 
-// Log logs an event.
-func (l *stdLogger) Log(level Level, e *Event) {
+// LogEvent logs an event.
+func (l *stdLogger) LogEvent(level Level, e *Event) {
 	i := atomic.AddInt32(&l.counter, 1)
 	l.l.Printf("%s: [%06d] %d [%6d - %s] %q (%s)\n", levelNames[level], i, e.CollectorID, e.RequestID, e.Type, e.Values, time.Since(l.start))
+}
+
+// ------------------------------------------------------------------------
+
+// LogError logs an error.
+func (l *stdLogger) LogError(level Level, e error) {
+	i := atomic.AddInt32(&l.counter, 1)
+	l.l.Printf("%s: [%06d]  %s (%s)\n", levelNames[level], i, e.Error(), time.Since(l.start))
 }

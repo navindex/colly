@@ -111,8 +111,8 @@ func NewWebLogger(address string) *webLogger {
 
 // ------------------------------------------------------------------------
 
-// Log logs an event.
-func (w *webLogger) Log(level Level, e *Event) {
+// LogEvent logs an event.
+func (w *webLogger) LogEvent(level Level, e *Event) {
 	w.Lock()
 	defer w.Unlock()
 
@@ -134,6 +134,13 @@ func (w *webLogger) Log(level Level, e *Event) {
 		w.resp = append(w.resp, r)
 		delete(w.req, e.RequestID)
 	}
+}
+
+// ------------------------------------------------------------------------
+
+// LogError logs an error.
+func (l *webLogger) LogError(level Level, e error) {
+	// Nothing to do
 }
 
 // ------------------------------------------------------------------------

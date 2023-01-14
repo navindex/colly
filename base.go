@@ -1,7 +1,6 @@
 package colly
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/url"
@@ -11,18 +10,7 @@ import (
 
 // ------------------------------------------------------------------------
 
-// Parser is an URL parser.
-type Parser interface {
-	Parse(rawUrl string) (*url.URL, error)         // Parse parses a raw URL into a URL structure.
-	ParseRef(rawUrl, ref string) (*url.URL, error) // ParseRef parses a raw url with a reference into a URL structure.
-}
-
 type RuleEnforcer interface{}
-
-// Tracer provides a contract to manage an http trace.
-type Tracer interface {
-	WithContext(ctx context.Context) context.Context // WithContext returns a new context based on the provided parent context.
-}
 
 // Proxy represents a proxy service.
 type Proxy interface{}
