@@ -7,12 +7,6 @@ import (
 	"net/url"
 	"strings"
 	"time"
-
-	"github.com/gocolly/colly/v2/cookiejar"
-	"github.com/gocolly/colly/v2/filter"
-	"github.com/gocolly/colly/v2/logger"
-	"github.com/gocolly/colly/v2/parser"
-	"github.com/gocolly/colly/v2/tracer"
 )
 
 // ------------------------------------------------------------------------
@@ -46,7 +40,7 @@ type CollectorConfig struct {
 	// Filter represents a number of URL filter criteria.
 	// Each filter can be an including or excluding filter. Blank filters will be ignored.
 	// Excluding filters will be evaluated before including filters.
-	Filter *filter.Filter `json:"filter" bson:"filter,omitempty"`
+	*Filter `json:"filter" bson:"filter,omitempty"`
 	// MaxDepth limits the recursion depth of visited URLs.
 	MaxDepth uint `json:"max_depth" bson:"max_depth,omitempty"`
 	// MaxBodySize is the limit of the retrieved response body in bytes. 0 means unlimited.
@@ -86,7 +80,7 @@ type CollectorConfig struct {
 	// Tracer attaches a tracing service to enable capturing and reporting request performance for crawler tuning.
 	Tracer `json:"tracer" bson:"tracer,omitempty"`
 	// Logger logs the collector events.
-	logger.Logger `json:"logger" bson:"logger,omitempty"`
+	Logger `json:"logger" bson:"logger,omitempty"`
 	// GroupRules are additional instructions by matching filter criteria.
 	DomainRules []DomainRule `json:"domain_rules" bson:"domain_rules,omitempty"`
 }
@@ -96,7 +90,7 @@ type DomainRule struct {
 	// Filter represents a number of URL filter criteria.
 	// Each filter can be an including or excluding filter. Blank filters will be ignored.
 	// Excluding filters will be evaluated before including filters.
-	Filter *filter.Filter `json:"filter" bson:"filter,omitempty"`
+	*Filter `json:"filter" bson:"filter,omitempty"`
 	// Delay is the duration to wait before creating a new request.
 	Delay time.Duration `json:"delay" bson:"delay,omitempty"`
 	// RandomDelay is the extra randomized duration to wait added to Delay before creating a new request.
@@ -113,21 +107,21 @@ var EnvMap = map[string]EnvConfigSetter{
 	"USER_AGENT":         func(c *CollectorConfig, val string) { c.UserAgentCallback = func(_ ...any) string { return val } },
 	"DETECT_CHARSET": func(c *CollectorConfig, val string) {
 		if b, err := StrToBool(val); err != nil {
-			c.logError(logger.WARN_LEVEL, fmt.Errorf("DETECT_CHARSET error: %v", err))
+			c.logError(LOG_WARN_LEVEL, fmt.Errorf("DETECT_CHARSET error: %v", err))
 		} else {
 			c.DetectCharset = b
 		}
 	},
 	"IGNORE_ROBOTSTXT": func(c *CollectorConfig, val string) {
 		if b, err := StrToBool(val); err != nil {
-			c.logError(logger.WARN_LEVEL, fmt.Errorf("IGNORE_ROBOTSTXT error: %v", err))
+			c.logError(LOG_WARN_LEVEL, fmt.Errorf("IGNORE_ROBOTSTXT error: %v", err))
 		} else {
 			c.IgnoreRobotsTxt = b
 		}
 	},
 	"FOLLOW_REDIRECTS": func(c *CollectorConfig, val string) {
 		if b, err := StrToBool(val); err != nil {
-			c.logError(logger.WARN_LEVEL, fmt.Errorf("FOLLOW_REDIRECTS error: %v", err))
+			c.logError(LOG_WARN_LEVEL, fmt.Errorf("FOLLOW_REDIRECTS error: %v", err))
 		} else {
 			c.FollowRedirects = b
 		}
@@ -143,28 +137,28 @@ var EnvMap = map[string]EnvConfigSetter{
 	},
 	"MAX_BODY_SIZE": func(c *CollectorConfig, val string) {
 		if n, err := StrToUInt(val); err != nil {
-			c.logError(logger.WARN_LEVEL, fmt.Errorf("MAX_BODY_SIZE error: %v", err))
+			c.logError(LOG_WARN_LEVEL, fmt.Errorf("MAX_BODY_SIZE error: %v", err))
 		} else {
 			c.MaxBodySize = n
 		}
 	},
 	"MAX_DEPTH": func(c *CollectorConfig, val string) {
 		if n, err := StrToUInt(val); err != nil {
-			c.logError(logger.WARN_LEVEL, fmt.Errorf("MAX_DEPTH error: %v", err))
+			c.logError(LOG_WARN_LEVEL, fmt.Errorf("MAX_DEPTH error: %v", err))
 		} else {
 			c.MaxDepth = n
 		}
 	},
 	"MAX_REVISIT": func(c *CollectorConfig, val string) {
 		if n, err := StrToUInt(val); err != nil {
-			c.logError(logger.WARN_LEVEL, fmt.Errorf("MAX_REVISIT error: %v", err))
+			c.logError(LOG_WARN_LEVEL, fmt.Errorf("MAX_REVISIT error: %v", err))
 		} else {
 			c.MaxRevisit = n
 		}
 	},
 	"PARSE_HTTP_ERROR_RESPONSE": func(c *CollectorConfig, val string) {
 		if b, err := StrToBool(val); err != nil {
-			c.logError(logger.WARN_LEVEL, fmt.Errorf("PARSE_HTTP_ERROR_RESPONSE error: %v", err))
+			c.logError(LOG_WARN_LEVEL, fmt.Errorf("PARSE_HTTP_ERROR_RESPONSE error: %v", err))
 		} else {
 			fn := parseSuccessResponse
 			if b {
@@ -175,11 +169,11 @@ var EnvMap = map[string]EnvConfigSetter{
 	},
 	"TRACE_HTTP": func(c *CollectorConfig, val string) {
 		if b, err := StrToBool(val); err != nil {
-			c.logError(logger.WARN_LEVEL, fmt.Errorf("FOLLOW_REDIRECTS error: %v", err))
+			c.logError(LOG_WARN_LEVEL, fmt.Errorf("FOLLOW_REDIRECTS error: %v", err))
 		} else {
 			var t Tracer
 			if b {
-				t = tracer.NewSimpleTracer()
+				t = NewSimpleTracer()
 			}
 			c.Tracer = t
 		}
@@ -197,13 +191,13 @@ var (
 // NewConfig returns a pointer to a newly created collector configuration settings.
 // Same default values are set.
 func NewConfig() *CollectorConfig {
-	jar, _ := cookiejar.New(nil, nil)
+	jar, _ := NewCookieJar(nil, nil)
 
 	return &CollectorConfig{
 		ParseStatusCallback: parseSuccessResponse,
 		FollowRedirects:     true,
 		CookieJar:           jar,
-		Parser:              parser.NewWHATWGParser(),
+		Parser:              NewWHATWGParser(),
 		// FIXME Cache: ...,
 	}
 }
@@ -219,7 +213,7 @@ func (c *CollectorConfig) ProcessEnv(env Environment, envMap map[string]EnvConfi
 	for k, v := range env.Values() {
 		fn, present := envMap[k]
 		if !present {
-			c.logError(logger.WARN_LEVEL, fmt.Errorf("ProcessEnv: unknown environment variable: %s", k))
+			c.logError(LOG_WARN_LEVEL, fmt.Errorf("ProcessEnv: unknown environment variable: %s", k))
 			continue
 		}
 
@@ -231,36 +225,36 @@ func (c *CollectorConfig) ProcessEnv(env Environment, envMap map[string]EnvConfi
 
 // SetAllowedDomains is a convenience method to set the allowed domains.
 func (c *CollectorConfig) SetAllowedDomains(domains []string) error {
-	f, err := filter.NewGlobFilterItem(domains)
+	f, err := NewGlobFilterItem(domains)
 	if err != nil {
 		return err
 	}
 
 	if c.Filter == nil {
-		c.Filter = filter.New()
+		c.Filter = NewFilter()
 	} else {
-		c.Filter.Remove(filter.INCLUDE, filter.DOMAIN_FILTER)
+		c.Filter.Remove(FILTER_METHOD_INCLUDE, DOMAIN_FILTER)
 	}
 
-	c.Filter.Append(filter.INCLUDE, filter.DOMAIN_FILTER, f)
+	c.Filter.Append(FILTER_METHOD_INCLUDE, DOMAIN_FILTER, f)
 
 	return nil
 }
 
 // SetDisallowedDomains is a convenience method to set the disallowed domains.
 func (c *CollectorConfig) SetDisallowedDomains(domains []string) error {
-	f, err := filter.NewGlobFilterItem(domains)
+	f, err := NewGlobFilterItem(domains)
 	if err != nil {
 		return err
 	}
 
 	if c.Filter == nil {
-		c.Filter = filter.New()
+		c.Filter = NewFilter()
 	} else {
-		c.Filter.Remove(filter.EXCLUDE, filter.DOMAIN_FILTER)
+		c.Filter.Remove(FILTER_METHOD_EXCLUDE, DOMAIN_FILTER)
 	}
 
-	c.Filter.Append(filter.EXCLUDE, filter.DOMAIN_FILTER, f)
+	c.Filter.Append(FILTER_METHOD_EXCLUDE, DOMAIN_FILTER, f)
 
 	return nil
 }
@@ -288,7 +282,7 @@ func (c *CollectorConfig) hasLogger() bool {
 	return c.Logger != nil
 }
 
-func (c *CollectorConfig) logError(level logger.Level, err error) {
+func (c *CollectorConfig) logError(level LogLevel, err error) {
 	if c.hasLogger() {
 		c.Logger.LogError(level, err)
 	}

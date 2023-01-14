@@ -9,12 +9,12 @@ import (
 	"strings"
 	"sync"
 
+	"colly/event"
+	"colly/storage"
+
 	"github.com/PuerkitoBio/goquery"
 	"github.com/antchfx/htmlquery"
 	"github.com/antchfx/xmlquery"
-	"github.com/gocolly/colly/storage"
-	"github.com/gocolly/colly/v2/event"
-	"github.com/gocolly/colly/v2/logger"
 	"github.com/temoto/robotstxt"
 )
 
@@ -111,7 +111,7 @@ func (c *Collector) OnRequestDetach(position ...int) {
 
 func (c *Collector) handleOnRequest(r *Request) {
 	if c.HasLogger() {
-		c.logEvent(logger.INFO_LEVEL, "request", r.ID, map[string]string{
+		c.logEvent(LOG_INFO_LEVEL, "request", r.ID, map[string]string{
 			"url": r.Req.URL.String(),
 		})
 	}
@@ -148,9 +148,9 @@ func (c *Collector) OnResponseHeadersDetach(position ...int) {
 
 func (c *Collector) handleOnResponseHeaders(resp *Response) {
 	if c.HasLogger() {
-		level := logger.INFO_LEVEL
+		level := LOG_INFO_LEVEL
 		if resp.Resp.StatusCode >= 300 {
-			level = logger.WARN_LEVEL
+			level = LOG_WARN_LEVEL
 		}
 		c.logEvent(level, "response_hdr", resp.Request.ID, map[string]string{
 			"url":         resp.Request.Req.URL.String(),
@@ -186,7 +186,7 @@ func (c *Collector) handleOnResponse(resp *Response) {
 	}
 
 	if c.HasLogger() {
-		c.logEvent(logger.INFO_LEVEL, "response", resp.Request.ID, map[string]string{
+		c.logEvent(LOG_INFO_LEVEL, "response", resp.Request.ID, map[string]string{
 			"url":         resp.Request.Req.URL.String(),
 			"status_code": strconv.Itoa(resp.Resp.StatusCode),
 			"status_msg":  resp.Resp.Status,
@@ -234,7 +234,7 @@ func (c *Collector) handleOnError(resp *Response, err error, ctx *Context) error
 		err = errors.New(http.StatusText(resp.Resp.StatusCode))
 	}
 	if c.HasLogger() {
-		c.logEvent(logger.WARN_LEVEL, "error", resp.Request.ID, map[string]string{
+		c.logEvent(LOG_WARN_LEVEL, "error", resp.Request.ID, map[string]string{
 			"url":         resp.Request.Req.URL.String(),
 			"status_code": strconv.Itoa(resp.Resp.StatusCode),
 			"status_msg":  resp.Resp.Status,
@@ -295,7 +295,7 @@ func (c *Collector) handleOnHTML(resp *Response) error {
 				e := NewHTMLElementFromSelectionNode(resp, s, n, i)
 				i++
 				if c.HasLogger() {
-					c.logEvent(logger.INFO_LEVEL, "html", resp.Request.ID, map[string]string{
+					c.logEvent(LOG_INFO_LEVEL, "html", resp.Request.ID, map[string]string{
 						"selector": selector,
 						"url":      resp.Request.Req.URL.String(),
 					})
@@ -360,7 +360,7 @@ func (c *Collector) handleOnXML(resp *Response) error {
 				e := NewXMLElementFromHTMLNode(resp, n)
 
 				if c.HasLogger() {
-					c.logEvent(logger.INFO_LEVEL, "xml", resp.Request.ID, map[string]string{
+					c.logEvent(LOG_INFO_LEVEL, "xml", resp.Request.ID, map[string]string{
 						"selector": query,
 						"url":      resp.Request.Req.URL.String(),
 					})
@@ -384,7 +384,7 @@ func (c *Collector) handleOnXML(resp *Response) error {
 				e := NewXMLElementFromXMLNode(resp, n)
 
 				if c.HasLogger() {
-					c.logEvent(logger.INFO_LEVEL, "xml", resp.Request.ID, map[string]string{
+					c.logEvent(LOG_INFO_LEVEL, "xml", resp.Request.ID, map[string]string{
 						"selector": query,
 						"url":      resp.Request.Req.URL.String(),
 					})
@@ -417,7 +417,7 @@ func (c *Collector) OnScrapedDetach(position ...int) {
 
 func (c *Collector) handleOnScraped(resp *Response) {
 	if c.HasLogger() {
-		c.logEvent(logger.INFO_LEVEL, "scraped", resp.Request.ID, map[string]string{
+		c.logEvent(LOG_INFO_LEVEL, "scraped", resp.Request.ID, map[string]string{
 			"url": resp.Request.Req.URL.String(),
 		})
 	}
@@ -443,9 +443,9 @@ func (c *Collector) HasLogger() bool {
 
 // ------------------------------------------------------------------------
 
-func (c *Collector) logEvent(level logger.Level, eventType string, requestID uint32, args map[string]string) {
+func (c *Collector) logEvent(level LogLevel, eventType string, requestID uint32, args map[string]string) {
 	if c.Config.hasLogger() {
-		c.Config.Logger.LogEvent(level, logger.NewEvent(eventType, c.ID, requestID, args))
+		c.Config.Logger.LogEvent(level, NewLoggerEvent(eventType, c.ID, requestID, args))
 	}
 }
 
