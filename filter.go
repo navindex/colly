@@ -44,6 +44,11 @@ type regexpFilter struct {
 	re []*regexp.Regexp
 }
 
+// lengthFilter represents an URL length filter
+type lengthFilter struct {
+	limit uint
+}
+
 // ------------------------------------------------------------------------
 
 const (
@@ -221,6 +226,20 @@ func (f *regexpFilter) Match(str string) bool {
 	}
 
 	return false
+}
+
+// ------------------------------------------------------------------------
+
+// NewLengthFilterItem returns a pointer to a newly created URL Length filter.
+func NewLengthFilterItem(maxLength uint) *lengthFilter {
+	return &lengthFilter{
+		limit: maxLength,
+	}
+}
+
+// Match reports whether the string str contains any match of the filter.
+func (f *lengthFilter) Match(str string) bool {
+	return len(str) <= int(f.limit)
 }
 
 // ------------------------------------------------------------------------
