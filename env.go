@@ -1,4 +1,4 @@
-package env
+package colly
 
 import (
 	"os"
@@ -17,10 +17,10 @@ type environment struct {
 
 // ------------------------------------------------------------------------
 
-// NewFromMap returns a pointer to a newly created environment structure.
+// NewEnvFromMap returns a pointer to a newly created environment structure.
 // It is based on a map where the keys will be filtered by a prefix.
 // An optional dictionary can be given to convert the keys.
-func NewFromMap(prefix string, values map[string]string, dict map[string]string) *environment {
+func NewEnvFromMap(prefix string, values map[string]string, dict map[string]string) *environment {
 	env := &environment{
 		prefix: prefix,
 		values: map[string]string{},
@@ -48,10 +48,10 @@ func NewFromMap(prefix string, values map[string]string, dict map[string]string)
 
 // ------------------------------------------------------------------------
 
-// NewFromOSEnv returns a pointer to a newly created environment structure.
+// NewEnvFromOS returns a pointer to a newly created environment structure.
 // It is based on the OS environment settings where the keys will be filtered by a prefix.
 // An optional dictionary can be given to convert the keys.
-func NewFromOSEnv(prefix string, dict map[string]string) *environment {
+func NewEnvFromOS(prefix string, dict map[string]string) *environment {
 	values := map[string]string{}
 
 	for _, v := range os.Environ() {
@@ -64,21 +64,21 @@ func NewFromOSEnv(prefix string, dict map[string]string) *environment {
 		values[pair[0]] = pair[1]
 	}
 
-	return NewFromMap(prefix, values, dict)
+	return NewEnvFromMap(prefix, values, dict)
 }
 
 // ------------------------------------------------------------------------
 
-// NewFromOSEnv returns a pointer to a newly created environment structure.
+// NewEnvFromFile returns a pointer to a newly created environment structure.
 // It is based on a content of an (tipycally .env) file where the keys will be filtered by a prefix.
 // An optional dictionary can be given to convert the keys.
-func NewFromFile(prefix string, path string, dict map[string]string) (*environment, error) {
+func NewEnvFromFile(prefix string, path string, dict map[string]string) (*environment, error) {
 	values, err := godotenv.Read(path)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewFromMap(prefix, values, dict), nil
+	return NewEnvFromMap(prefix, values, dict), nil
 }
 
 // ------------------------------------------------------------------------
