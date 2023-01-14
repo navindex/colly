@@ -1787,7 +1787,7 @@ func Test_eventList_IsEmpty(t *testing.T) {
 	}
 	type args struct {
 		event uint8
-		arg   string
+		arg   []string
 	}
 	tests := []struct {
 		name   string
@@ -1842,7 +1842,7 @@ func Test_eventList_IsEmpty(t *testing.T) {
 			},
 			args: args{
 				event: 10,
-				arg:   "arg_1",
+				arg:   []string{"arg_1"},
 			},
 			want: true,
 		},
@@ -1893,7 +1893,7 @@ func Test_eventList_IsEmpty(t *testing.T) {
 			},
 			args: args{
 				event: 20,
-				arg:   "arg_A",
+				arg:   []string{"arg_A"},
 			},
 			want: false,
 		},
@@ -1904,7 +1904,7 @@ func Test_eventList_IsEmpty(t *testing.T) {
 				events: tt.fields.events,
 				lock:   tt.fields.lock,
 			}
-			if got := el.IsEmpty(tt.args.event, tt.args.arg); got != tt.want {
+			if got := el.IsEmpty(tt.args.event, tt.args.arg...); got != tt.want {
 				t.Errorf("eventList.IsEmpty() = %v, want %v", got, tt.want)
 			}
 		})

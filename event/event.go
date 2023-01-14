@@ -102,13 +102,13 @@ func (el *eventList) GetArg(event uint8, arg string) []any {
 
 // ------------------------------------------------------------------------
 
-// Count returns the number of items attached to an event argument.
-func (el *eventList) Count(event uint8, arg string) (count int) {
+// Count returns the number of items attached to an event or argument.
+func (el *eventList) Count(event uint8, args ...string) (count int) {
 	el.lock.RLock()
 	defer el.lock.RUnlock()
 
 	if al, present := el.events[event]; present {
-		count = al.count(arg)
+		count = al.count(args...)
 	}
 
 	return count
@@ -117,13 +117,13 @@ func (el *eventList) Count(event uint8, arg string) (count int) {
 // ------------------------------------------------------------------------
 
 // IsEmpty returns true if no items were attached to the event or argument.
-func (el *eventList) IsEmpty(event uint8, arg string) bool {
+func (el *eventList) IsEmpty(event uint8, arg ...string) bool {
 	el.lock.RLock()
 	defer el.lock.RUnlock()
 
 	al, present := el.events[event]
 
-	return !present || al.isEmpty(arg)
+	return !present || al.isEmpty(arg...)
 }
 
 // ------------------------------------------------------------------------
@@ -177,9 +177,9 @@ func (al *argList) remove(arg string, keys ...int) {
 		delete(al.args, arg)
 	}
 
-	for k := range keys {
+	for _, key := range keys {
 		// Remove the item and set the counter
-		if ok := al.args[arg].remove(keys[k]); ok {
+		if ok := al.args[arg].remove(key); ok {
 			al.counter--
 		}
 	}
@@ -231,14 +231,18 @@ func (al *argList) count(args ...string) (count int) {
 
 // --------------------------------
 
-func (al *argList) isEmpty(arg ...string) bool {
-	if len(arg) == 0 {
+func (al *argList) isEmpty(args ...string) bool {
+	if len(args) == 0 {
 		return al.counter == 0
 	}
 
-	a, present := al.args[arg[0]]
+	for _, arg := range args {
+		if a, present := al.args[arg]; present && !a.isEmpty() {
+			return false
+		}
+	}
 
-	return !present || a.isEmpty()
+	return true
 }
 
 // ------------------------------------------------------------------------
