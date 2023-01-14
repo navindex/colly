@@ -1,6 +1,6 @@
 package badger
 
-import "github.com/gocolly/colly/v2/storage"
+import "colly/storage"
 
 // ------------------------------------------------------------------------
 

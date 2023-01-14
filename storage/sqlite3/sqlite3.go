@@ -1,11 +1,11 @@
 package sqlite3
 
 import (
+	"colly/storage"
 	"database/sql"
 	"strings"
 	"sync"
 
-	"github.com/gocolly/colly/v2/storage"
 	_ "github.com/mattn/go-sqlite3"
 )
 

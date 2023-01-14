@@ -2,9 +2,8 @@
 package mem
 
 import (
+	"colly/storage"
 	"sync"
-
-	"github.com/gocolly/colly/v2/storage"
 )
 
 // ------------------------------------------------------------------------

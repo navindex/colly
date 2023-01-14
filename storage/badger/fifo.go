@@ -1,10 +1,10 @@
 package badger
 
 import (
+	"colly/storage"
 	"net/url"
 
 	"github.com/dgraph-io/badger/v3"
-	"github.com/gocolly/colly/v2/storage"
 )
 
 // ------------------------------------------------------------------------

@@ -2,10 +2,9 @@
 package sqlite3
 
 import (
+	"colly/storage"
 	"database/sql"
 	"net/url"
-
-	"github.com/gocolly/colly/v2/storage"
 )
 
 // ------------------------------------------------------------------------
