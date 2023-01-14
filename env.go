@@ -9,6 +9,11 @@ import (
 
 // ------------------------------------------------------------------------
 
+// Environment represents a collection of environment variables.
+type Environment interface {
+	Values() map[string]string // Values returns the key/value pairs stored in the environment structure.
+}
+
 type environment struct {
 	prefix string
 	values map[string]string

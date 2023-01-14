@@ -9,6 +9,11 @@ import (
 
 // ------------------------------------------------------------------------
 
+// Tracer provides a contract to manage an http trace.
+type Tracer interface {
+	WithContext(ctx context.Context) context.Context // WithContext returns a new context based on the provided parent context.
+}
+
 // simpleTracer provides a simple data structure for storing an http trace.
 type simpleTracer struct {
 	start        time.Time

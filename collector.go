@@ -18,16 +18,6 @@ import (
 
 // ------------------------------------------------------------------------
 
-// EventCallbacks is an ordered list of callback functions, grouped by events.
-type EventCallbacks interface {
-	Add(event uint8, arg string, fn any, index ...int) // Add inserts ar appends a new callback function.
-	Remove(event uint8, arg string, index ...int)      // Remove removes some or all of the event functions.
-	Get(event uint8) map[string][]any                  // Get retrieves all callback functions attached to an event, mapped to the arguments.
-	GetArg(event uint8, arg string) []any              // GetArg retrieves all callback functions attached to an event with an argument.
-	Count(event uint8, arg ...string) int              // Count returns the number of items attached to an event or argument.
-	IsEmpty(event uint8, arg ...string) bool           //IsEmpty returns true if no callback attached to the event or argument; otherwise returns false.
-}
-
 // Callback functions
 type (
 	RequestCallback         func(*Request)         // RequestCallback is a type alias for OnRequest callback functions.

@@ -1,31 +1,13 @@
 package colly
 
 import (
-	"context"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
 
 // ------------------------------------------------------------------------
-
-// Environment represents a collection of environment variables.
-type Environment interface {
-	Values() map[string]string // Values returns the key/value pairs stored in the environment structure.
-}
-
-// Parser is an URL parser.
-type Parser interface {
-	Parse(rawUrl string) (*url.URL, error)         // Parse parses a raw URL into a URL structure.
-	ParseRef(rawUrl, ref string) (*url.URL, error) // ParseRef parses a raw url with a reference into a URL structure.
-}
-
-// Tracer provides a contract to manage an http trace.
-type Tracer interface {
-	WithContext(ctx context.Context) context.Context // WithContext returns a new context based on the provided parent context.
-}
 
 type (
 	ConfigSetter        func(c *CollectorConfig)             // ConfigSetter is a function to set a collector configuration option.
