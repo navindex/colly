@@ -8,12 +8,12 @@ import (
 	"net"
 	"net/http"
 	"net/http/cookiejar"
-	"net/http/internal/ascii"
 	"net/url"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -111,6 +111,20 @@ func NewCookieJar(storage CookieStorage, o *cookiejar.Options) (http.CookieJar, 
 	}
 
 	return jar, nil
+}
+
+// ------------------------------------------------------------------------
+
+// DecodeBinaryToEntries encodes the entry submap to bytes.
+func DecodeBinaryToEntries(data []byte) (entries, error) {
+	// Convert byte slice to io.Reader
+	reader := bytes.NewReader(data)
+
+	// Decode to a slice of cookies
+	var e entries
+	err := gob.NewDecoder(reader).Decode(&e)
+
+	return e, err
 }
 
 // ------------------------------------------------------------------------
@@ -405,7 +419,7 @@ func (j *Jar) domainAndType(host, domain string) (string, bool, error) {
 		return "", false, errMalformedDomain
 	}
 
-	domain, isASCII := ascii.ToLower(domain)
+	domain, isASCII := toLower(domain)
 	if !isASCII {
 		// Received non-ASCII domain, e.g. "perché.com" instead of "xn--perch-fsa.com"
 		return "", false, errMalformedDomain
@@ -504,8 +518,6 @@ func hasDotSuffix(s, suffix string) bool {
 	return len(s) > len(suffix) && s[len(s)-len(suffix)-1] == '.' && s[len(s)-len(suffix):] == suffix
 }
 
-// ------------------------------------------------------------------------
-
 // canonicalHost strips port from host if present and returns the canonicalized
 // host name.
 func canonicalHost(host string) (string, error) {
@@ -523,11 +535,9 @@ func canonicalHost(host string) (string, error) {
 		return "", err
 	}
 	// We know this is ascii, no need to check.
-	lower, _ := ascii.ToLower(encoded)
+	lower, _ := toLower(encoded)
 	return lower, nil
 }
-
-// ------------------------------------------------------------------------
 
 // hasPort reports whether host contains a port number. host may be a host
 // name, an IPv4 or an IPv6 address.
@@ -541,8 +551,6 @@ func hasPort(host string) bool {
 	}
 	return host[0] == '[' && strings.Contains(host, "]:")
 }
-
-// ------------------------------------------------------------------------
 
 // jarKey returns the key to use for a jar.
 func jarKey(host string, psl cookiejar.PublicSuffixList) string {
@@ -575,14 +583,10 @@ func jarKey(host string, psl cookiejar.PublicSuffixList) string {
 	return host[prevDot+1:]
 }
 
-// ------------------------------------------------------------------------
-
 // isIP reports whether host is an IP address.
 func isIP(host string) bool {
 	return net.ParseIP(host) != nil
 }
-
-// ------------------------------------------------------------------------
 
 // defaultPath returns the directory part of an URL's path according to
 // RFC 6265 section 5.1.4.
@@ -597,8 +601,6 @@ func defaultPath(path string) string {
 	}
 	return path[:i] // Path is either of form "/abc/xyz" or "/abc/xyz/".
 }
-
-// ------------------------------------------------------------------------
 
 // encode encodes a string as specified in section 6.3 and prepends prefix to
 // the result.
@@ -671,8 +673,6 @@ func encode(prefix, s string) (string, error) {
 	return string(output), nil
 }
 
-// ------------------------------------------------------------------------
-
 func encodeDigit(digit int32) byte {
 	switch {
 	case 0 <= digit && digit < 26:
@@ -682,8 +682,6 @@ func encodeDigit(digit int32) byte {
 	}
 	panic("cookiejar: internal error in punycode encoding")
 }
-
-// ------------------------------------------------------------------------
 
 // adapt is the bias adaptation function specified in section 6.1.
 func adapt(delta, numPoints int32, firstTime bool) int32 {
@@ -701,8 +699,6 @@ func adapt(delta, numPoints int32, firstTime bool) int32 {
 	return k + (base-tmin+1)*delta/(delta+skew)
 }
 
-// ------------------------------------------------------------------------
-
 // toASCII converts a domain or domain label to its ASCII form. For example,
 // toASCII("bücher.example.com") is "xn--bcher-kva.example.com", and
 // toASCII("golang") is "golang".
@@ -710,12 +706,12 @@ func toASCII(s string) (string, error) {
 	// acePrefix is the ASCII Compatible Encoding prefix.
 	const acePrefix = "xn--"
 
-	if ascii.Is(s) {
+	if isASCII(s) {
 		return s, nil
 	}
 	labels := strings.Split(s, ".")
 	for i, label := range labels {
-		if !ascii.Is(label) {
+		if !isASCII(label) {
 			a, err := encode(acePrefix, label)
 			if err != nil {
 				return "", err
@@ -726,16 +722,32 @@ func toASCII(s string) (string, error) {
 	return strings.Join(labels, "."), nil
 }
 
-// ------------------------------------------------------------------------
+// toLower returns the lowercase version of s if s is ASCII and printable.
+func toLower(s string) (lower string, ok bool) {
+	if !isPrint(s) {
+		return "", false
+	}
 
-// DecodeBinaryToEntries encodes the entry submap to bytes.
-func DecodeBinaryToEntries(data []byte) (entries, error) {
-	// Convert byte slice to io.Reader
-	reader := bytes.NewReader(data)
+	return strings.ToLower(s), true
+}
 
-	// Decode to a slice of cookies
-	var e entries
-	err := gob.NewDecoder(reader).Decode(&e)
+// isPrint returns whether s is ASCII and printable according to
+// https://tools.ietf.org/html/rfc20#section-4.2.
+func isPrint(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] < ' ' || s[i] > '~' {
+			return false
+		}
+	}
+	return true
+}
 
-	return e, err
+// isASCII returns whether s is ASCII.
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] > unicode.MaxASCII {
+			return false
+		}
+	}
+	return true
 }
