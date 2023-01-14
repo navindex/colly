@@ -2,15 +2,13 @@ package colly
 
 import (
 	"bytes"
+	"colly/storage"
 	"context"
 	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
-
-	"colly/event"
-	"colly/storage"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/antchfx/htmlquery"
@@ -50,7 +48,7 @@ type Collector struct {
 
 	sysCallbacks EventCallbacks // system callback functions will be called before other callbacks
 
-	store         storage.Storage
+	store         storage.BaseStorage
 	robotsMap     map[string]*robotstxt.RobotsData
 	requestCount  uint32
 	responseCount uint32
@@ -84,13 +82,13 @@ func NewCollector(config *CollectorConfig, callbacks EventCallbacks) *Collector 
 	}
 
 	if callbacks == nil {
-		callbacks = event.NewEventList()
+		callbacks = NewEventList()
 	}
 
 	return &Collector{
 		Config:       config,
 		Callbacks:    callbacks,
-		sysCallbacks: event.NewEventList(),
+		sysCallbacks: NewEventList(),
 	}
 }
 

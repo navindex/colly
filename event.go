@@ -1,4 +1,4 @@
-package event
+package colly
 
 import (
 	"math"
@@ -11,20 +11,20 @@ import (
 // The eventList structure is an ordered list of items, grouped by events and their arguments.
 // It is responsible for locking.
 type eventList struct {
-	events map[uint8]*argList
+	events map[uint8]*evenArgList
 	lock   *sync.RWMutex
 }
 
-// The argList structure has the argument list of all events.
+// The evenArgList structure has the argument list of all events.
 // It is responsible for item counting.
-type argList struct {
-	args    map[string]*itemList
+type evenArgList struct {
+	args    map[string]*eventArgItemList
 	counter int
 }
 
-// The itemList structure has the item list of an argument.
+// The eventArgItemList structure has the item list of an argument.
 // It is responsible for item sorting.
-type itemList struct {
+type eventArgItemList struct {
 	original map[int]any
 	sorted   []any
 }
@@ -34,7 +34,7 @@ type itemList struct {
 // NewEventArgList returns a pointer to a newly created event argument list.
 func NewEventList() *eventList {
 	return &eventList{
-		events: map[uint8]*argList{},
+		events: map[uint8]*evenArgList{},
 		lock:   &sync.RWMutex{},
 	}
 }
@@ -128,16 +128,16 @@ func (el *eventList) IsEmpty(event uint8, arg ...string) bool {
 
 // ------------------------------------------------------------------------
 
-func newArgList() *argList {
-	return &argList{
-		args:    map[string]*itemList{},
+func newArgList() *evenArgList {
+	return &evenArgList{
+		args:    map[string]*eventArgItemList{},
 		counter: 0,
 	}
 }
 
 // --------------------------------
 
-func (al *argList) addArg(arg string) {
+func (al *evenArgList) addArg(arg string) {
 	if _, present := al.args[arg]; !present {
 		al.args[arg] = newItemList()
 	}
@@ -145,7 +145,7 @@ func (al *argList) addArg(arg string) {
 
 // --------------------------------
 
-func (al *argList) addItem(arg string, item any, key ...int) {
+func (al *evenArgList) addItem(arg string, item any, key ...int) {
 	var incr bool
 
 	// Create argument if missing
@@ -165,7 +165,7 @@ func (al *argList) addItem(arg string, item any, key ...int) {
 
 // --------------------------------
 
-func (al *argList) remove(arg string, keys ...int) {
+func (al *evenArgList) remove(arg string, keys ...int) {
 	// Nothing to remove if the argument doesn't exist
 	if _, present := al.args[arg]; !present {
 		return
@@ -187,7 +187,7 @@ func (al *argList) remove(arg string, keys ...int) {
 
 // --------------------------------
 
-func (al *argList) getArg(arg string) []any {
+func (al *evenArgList) getArg(arg string) []any {
 	if al.isEmpty(arg) {
 		return nil
 	}
@@ -197,7 +197,7 @@ func (al *argList) getArg(arg string) []any {
 
 // --------------------------------
 
-func (al *argList) getAll() map[string][]any {
+func (al *evenArgList) getAll() map[string][]any {
 	if al.isEmpty() {
 		return nil
 	}
@@ -215,7 +215,7 @@ func (al *argList) getAll() map[string][]any {
 
 // --------------------------------
 
-func (al *argList) count(args ...string) (count int) {
+func (al *evenArgList) count(args ...string) (count int) {
 	if len(args) == 0 {
 		return al.counter
 	}
@@ -231,7 +231,7 @@ func (al *argList) count(args ...string) (count int) {
 
 // --------------------------------
 
-func (al *argList) isEmpty(args ...string) bool {
+func (al *evenArgList) isEmpty(args ...string) bool {
 	if len(args) == 0 {
 		return al.counter == 0
 	}
@@ -247,8 +247,8 @@ func (al *argList) isEmpty(args ...string) bool {
 
 // ------------------------------------------------------------------------
 
-func newItemList() *itemList {
-	return &itemList{
+func newItemList() *eventArgItemList {
+	return &eventArgItemList{
 		original: map[int]any{},
 		sorted:   []any{},
 	}
@@ -256,7 +256,7 @@ func newItemList() *itemList {
 
 // --------------------------------
 
-func (il *itemList) set(key int, item any) (new bool) {
+func (il *eventArgItemList) set(key int, item any) (new bool) {
 	var present bool = false
 
 	if il.original == nil {
@@ -273,7 +273,7 @@ func (il *itemList) set(key int, item any) (new bool) {
 
 // --------------------------------
 
-func (il *itemList) append(item any) (ok bool) {
+func (il *eventArgItemList) append(item any) (ok bool) {
 	if _, present := il.original[math.MaxInt]; present {
 		return false
 	}
@@ -301,7 +301,7 @@ func (il *itemList) append(item any) (ok bool) {
 
 // --------------------------------
 
-func (il *itemList) remove(key int) (ok bool) {
+func (il *eventArgItemList) remove(key int) (ok bool) {
 	if len(il.original) == 0 {
 		return false
 	}
@@ -318,7 +318,7 @@ func (il *itemList) remove(key int) (ok bool) {
 
 // --------------------------------
 
-func (il *itemList) sort() {
+func (il *eventArgItemList) sort() {
 	il.sorted = []any{}
 
 	if len(il.original) == 0 {
@@ -343,12 +343,12 @@ func (il *itemList) sort() {
 
 // --------------------------------
 
-func (il *itemList) count() int {
+func (il *eventArgItemList) count() int {
 	return len(il.original)
 }
 
 // --------------------------------
 
-func (il *itemList) isEmpty() bool {
+func (il *eventArgItemList) isEmpty() bool {
 	return len(il.original) == 0
 }

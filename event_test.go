@@ -1,4 +1,4 @@
-package event
+package colly
 
 import (
 	"math"
@@ -17,7 +17,7 @@ func TestNewEventList(t *testing.T) {
 		{
 			name: "default",
 			want: &eventList{
-				events: map[uint8]*argList{},
+				events: map[uint8]*evenArgList{},
 				lock:   &sync.RWMutex{},
 			},
 		},
@@ -35,7 +35,7 @@ func TestNewEventList(t *testing.T) {
 
 func Test_eventList_Add(t *testing.T) {
 	type fields struct {
-		events map[uint8]*argList
+		events map[uint8]*evenArgList
 		lock   *sync.RWMutex
 	}
 	type args struct {
@@ -48,14 +48,14 @@ func Test_eventList_Add(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   map[uint8]*argList
+		want   map[uint8]*evenArgList
 	}{
 		{
 			name: "append to empty arg",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -74,7 +74,7 @@ func Test_eventList_Add(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -100,9 +100,9 @@ func Test_eventList_Add(t *testing.T) {
 				arg:   "arg_1",
 				item:  "sixty-nine",
 			},
-			want: map[uint8]*argList{
+			want: map[uint8]*evenArgList{
 				10: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_1": {
 							original: map[int]any{
 								0: "sixty-nine",
@@ -123,7 +123,7 @@ func Test_eventList_Add(t *testing.T) {
 					counter: 6,
 				},
 				20: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_A": {
 							original: map[int]any{
 								6:   "six",
@@ -146,9 +146,9 @@ func Test_eventList_Add(t *testing.T) {
 		{
 			name: "add to empty arg",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -167,7 +167,7 @@ func Test_eventList_Add(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -194,9 +194,9 @@ func Test_eventList_Add(t *testing.T) {
 				item:  "sixty-nine",
 				index: []int{3},
 			},
-			want: map[uint8]*argList{
+			want: map[uint8]*evenArgList{
 				10: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_1": {
 							original: map[int]any{
 								3: "sixty-nine",
@@ -217,7 +217,7 @@ func Test_eventList_Add(t *testing.T) {
 					counter: 6,
 				},
 				20: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_A": {
 							original: map[int]any{
 								6:   "six",
@@ -240,9 +240,9 @@ func Test_eventList_Add(t *testing.T) {
 		{
 			name: "append",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -261,7 +261,7 @@ func Test_eventList_Add(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -287,9 +287,9 @@ func Test_eventList_Add(t *testing.T) {
 				arg:   "arg_A",
 				item:  "sixty-nine",
 			},
-			want: map[uint8]*argList{
+			want: map[uint8]*evenArgList{
 				10: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_1": {
 							original: map[int]any{},
 							sorted:   []any{},
@@ -308,7 +308,7 @@ func Test_eventList_Add(t *testing.T) {
 					counter: 5,
 				},
 				20: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_A": {
 							original: map[int]any{
 								6:   "six",
@@ -332,9 +332,9 @@ func Test_eventList_Add(t *testing.T) {
 		{
 			name: "add",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -353,7 +353,7 @@ func Test_eventList_Add(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -380,9 +380,9 @@ func Test_eventList_Add(t *testing.T) {
 				item:  "sixty-nine",
 				index: []int{69},
 			},
-			want: map[uint8]*argList{
+			want: map[uint8]*evenArgList{
 				10: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_1": {
 							original: map[int]any{},
 							sorted:   []any{},
@@ -401,7 +401,7 @@ func Test_eventList_Add(t *testing.T) {
 					counter: 5,
 				},
 				20: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_A": {
 							original: map[int]any{
 								6:   "six",
@@ -425,9 +425,9 @@ func Test_eventList_Add(t *testing.T) {
 		{
 			name: "replace",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -446,7 +446,7 @@ func Test_eventList_Add(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -473,9 +473,9 @@ func Test_eventList_Add(t *testing.T) {
 				item:  "two hundred and more",
 				index: []int{200},
 			},
-			want: map[uint8]*argList{
+			want: map[uint8]*evenArgList{
 				10: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_1": {
 							original: map[int]any{},
 							sorted:   []any{},
@@ -494,7 +494,7 @@ func Test_eventList_Add(t *testing.T) {
 					counter: 5,
 				},
 				20: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_A": {
 							original: map[int]any{
 								6:   "six",
@@ -517,9 +517,9 @@ func Test_eventList_Add(t *testing.T) {
 		{
 			name: "append to missing arg",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -538,7 +538,7 @@ func Test_eventList_Add(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -564,9 +564,9 @@ func Test_eventList_Add(t *testing.T) {
 				arg:   "arg_C",
 				item:  "ten",
 			},
-			want: map[uint8]*argList{
+			want: map[uint8]*evenArgList{
 				10: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_1": {
 							original: map[int]any{},
 							sorted:   []any{},
@@ -585,7 +585,7 @@ func Test_eventList_Add(t *testing.T) {
 					counter: 5,
 				},
 				20: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_A": {
 							original: map[int]any{
 								6:   "six",
@@ -614,9 +614,9 @@ func Test_eventList_Add(t *testing.T) {
 		{
 			name: "add to missing arg",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -635,7 +635,7 @@ func Test_eventList_Add(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -662,9 +662,9 @@ func Test_eventList_Add(t *testing.T) {
 				item:  "ten",
 				index: []int{10},
 			},
-			want: map[uint8]*argList{
+			want: map[uint8]*evenArgList{
 				10: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_1": {
 							original: map[int]any{},
 							sorted:   []any{},
@@ -683,7 +683,7 @@ func Test_eventList_Add(t *testing.T) {
 					counter: 5,
 				},
 				20: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_A": {
 							original: map[int]any{
 								6:   "six",
@@ -733,7 +733,7 @@ func Test_eventList_Add(t *testing.T) {
 
 func Test_eventList_Remove(t *testing.T) {
 	type fields struct {
-		events map[uint8]*argList
+		events map[uint8]*evenArgList
 		lock   *sync.RWMutex
 	}
 	type args struct {
@@ -745,14 +745,14 @@ func Test_eventList_Remove(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   map[uint8]*argList
+		want   map[uint8]*evenArgList
 	}{
 		{
 			name: "empty arg",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -771,7 +771,7 @@ func Test_eventList_Remove(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -796,9 +796,9 @@ func Test_eventList_Remove(t *testing.T) {
 				event: 10,
 				arg:   "arg_1",
 			},
-			want: map[uint8]*argList{
+			want: map[uint8]*evenArgList{
 				10: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_2": {
 							original: map[int]any{
 								6:   "six",
@@ -813,7 +813,7 @@ func Test_eventList_Remove(t *testing.T) {
 					counter: 5,
 				},
 				20: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_A": {
 							original: map[int]any{
 								6:   "six",
@@ -836,9 +836,9 @@ func Test_eventList_Remove(t *testing.T) {
 		{
 			name: "index in empty arg",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -857,7 +857,7 @@ func Test_eventList_Remove(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -883,9 +883,9 @@ func Test_eventList_Remove(t *testing.T) {
 				arg:   "arg_1",
 				index: []int{3},
 			},
-			want: map[uint8]*argList{
+			want: map[uint8]*evenArgList{
 				10: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_1": {
 							original: map[int]any{},
 							sorted:   []any{},
@@ -904,7 +904,7 @@ func Test_eventList_Remove(t *testing.T) {
 					counter: 5,
 				},
 				20: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_A": {
 							original: map[int]any{
 								6:   "six",
@@ -927,9 +927,9 @@ func Test_eventList_Remove(t *testing.T) {
 		{
 			name: "full arg",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -948,7 +948,7 @@ func Test_eventList_Remove(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -973,9 +973,9 @@ func Test_eventList_Remove(t *testing.T) {
 				event: 20,
 				arg:   "arg_A",
 			},
-			want: map[uint8]*argList{
+			want: map[uint8]*evenArgList{
 				10: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_1": {
 							original: map[int]any{},
 							sorted:   []any{},
@@ -994,7 +994,7 @@ func Test_eventList_Remove(t *testing.T) {
 					counter: 5,
 				},
 				20: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_B": {
 							original: map[int]any{},
 							sorted:   []any{},
@@ -1007,9 +1007,9 @@ func Test_eventList_Remove(t *testing.T) {
 		{
 			name: "index",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -1028,7 +1028,7 @@ func Test_eventList_Remove(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -1054,9 +1054,9 @@ func Test_eventList_Remove(t *testing.T) {
 				arg:   "arg_A",
 				index: []int{7},
 			},
-			want: map[uint8]*argList{
+			want: map[uint8]*evenArgList{
 				10: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_1": {
 							original: map[int]any{},
 							sorted:   []any{},
@@ -1075,7 +1075,7 @@ func Test_eventList_Remove(t *testing.T) {
 					counter: 5,
 				},
 				20: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_A": {
 							original: map[int]any{
 								6:   "six",
@@ -1097,9 +1097,9 @@ func Test_eventList_Remove(t *testing.T) {
 		{
 			name: "missing arg",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -1118,7 +1118,7 @@ func Test_eventList_Remove(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -1143,9 +1143,9 @@ func Test_eventList_Remove(t *testing.T) {
 				event: 20,
 				arg:   "arg_C",
 			},
-			want: map[uint8]*argList{
+			want: map[uint8]*evenArgList{
 				10: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_1": {
 							original: map[int]any{},
 							sorted:   []any{},
@@ -1164,7 +1164,7 @@ func Test_eventList_Remove(t *testing.T) {
 					counter: 5,
 				},
 				20: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_A": {
 							original: map[int]any{
 								6:   "six",
@@ -1187,9 +1187,9 @@ func Test_eventList_Remove(t *testing.T) {
 		{
 			name: "missing index",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -1208,7 +1208,7 @@ func Test_eventList_Remove(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -1234,9 +1234,9 @@ func Test_eventList_Remove(t *testing.T) {
 				arg:   "arg_2",
 				index: []int{222},
 			},
-			want: map[uint8]*argList{
+			want: map[uint8]*evenArgList{
 				10: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_1": {
 							original: map[int]any{},
 							sorted:   []any{},
@@ -1255,7 +1255,7 @@ func Test_eventList_Remove(t *testing.T) {
 					counter: 5,
 				},
 				20: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_A": {
 							original: map[int]any{
 								6:   "six",
@@ -1278,9 +1278,9 @@ func Test_eventList_Remove(t *testing.T) {
 		{
 			name: "multi index",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -1299,7 +1299,7 @@ func Test_eventList_Remove(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -1325,9 +1325,9 @@ func Test_eventList_Remove(t *testing.T) {
 				arg:   "arg_2",
 				index: []int{222, 99, 7},
 			},
-			want: map[uint8]*argList{
+			want: map[uint8]*evenArgList{
 				10: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_1": {
 							original: map[int]any{},
 							sorted:   []any{},
@@ -1344,7 +1344,7 @@ func Test_eventList_Remove(t *testing.T) {
 					counter: 3,
 				},
 				20: {
-					args: map[string]*itemList{
+					args: map[string]*eventArgItemList{
 						"arg_A": {
 							original: map[int]any{
 								6:   "six",
@@ -1383,7 +1383,7 @@ func Test_eventList_Remove(t *testing.T) {
 
 func Test_eventList_Get(t *testing.T) {
 	type fields struct {
-		events map[uint8]*argList
+		events map[uint8]*evenArgList
 		lock   *sync.RWMutex
 	}
 	type args struct {
@@ -1398,9 +1398,9 @@ func Test_eventList_Get(t *testing.T) {
 		{
 			name: "empty",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -1413,7 +1413,7 @@ func Test_eventList_Get(t *testing.T) {
 						counter: 0,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -1442,9 +1442,9 @@ func Test_eventList_Get(t *testing.T) {
 		{
 			name: "not empty",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -1463,7 +1463,7 @@ func Test_eventList_Get(t *testing.T) {
 						counter: 0,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -1516,7 +1516,7 @@ func Test_eventList_Get(t *testing.T) {
 
 func Test_eventList_GetArg(t *testing.T) {
 	type fields struct {
-		events map[uint8]*argList
+		events map[uint8]*evenArgList
 		lock   *sync.RWMutex
 	}
 	type args struct {
@@ -1532,9 +1532,9 @@ func Test_eventList_GetArg(t *testing.T) {
 		{
 			name: "empty",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -1553,7 +1553,7 @@ func Test_eventList_GetArg(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -1583,9 +1583,9 @@ func Test_eventList_GetArg(t *testing.T) {
 		{
 			name: "not empty",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -1604,7 +1604,7 @@ func Test_eventList_GetArg(t *testing.T) {
 						counter: 5,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -1649,7 +1649,7 @@ func Test_eventList_GetArg(t *testing.T) {
 
 func Test_eventList_Count(t *testing.T) {
 	type fields struct {
-		events map[uint8]*argList
+		events map[uint8]*evenArgList
 		lock   *sync.RWMutex
 	}
 	type args struct {
@@ -1665,9 +1665,9 @@ func Test_eventList_Count(t *testing.T) {
 		{
 			name: "empty",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -1686,7 +1686,7 @@ func Test_eventList_Count(t *testing.T) {
 						counter: 0,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -1716,9 +1716,9 @@ func Test_eventList_Count(t *testing.T) {
 		{
 			name: "not empty",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -1737,7 +1737,7 @@ func Test_eventList_Count(t *testing.T) {
 						counter: 0,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -1782,7 +1782,7 @@ func Test_eventList_Count(t *testing.T) {
 
 func Test_eventList_IsEmpty(t *testing.T) {
 	type fields struct {
-		events map[uint8]*argList
+		events map[uint8]*evenArgList
 		lock   *sync.RWMutex
 	}
 	type args struct {
@@ -1798,9 +1798,9 @@ func Test_eventList_IsEmpty(t *testing.T) {
 		{
 			name: "empty",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -1819,7 +1819,7 @@ func Test_eventList_IsEmpty(t *testing.T) {
 						counter: 0,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -1849,9 +1849,9 @@ func Test_eventList_IsEmpty(t *testing.T) {
 		{
 			name: "not empty",
 			fields: fields{
-				events: map[uint8]*argList{
+				events: map[uint8]*evenArgList{
 					10: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_1": {
 								original: map[int]any{},
 								sorted:   []any{},
@@ -1870,7 +1870,7 @@ func Test_eventList_IsEmpty(t *testing.T) {
 						counter: 0,
 					},
 					20: {
-						args: map[string]*itemList{
+						args: map[string]*eventArgItemList{
 							"arg_A": {
 								original: map[int]any{
 									6:   "six",
@@ -1916,12 +1916,12 @@ func Test_eventList_IsEmpty(t *testing.T) {
 func Test_newArgList(t *testing.T) {
 	tests := []struct {
 		name string
-		want *argList
+		want *evenArgList
 	}{
 		{
 			name: "default",
-			want: &argList{
-				args:    map[string]*itemList{},
+			want: &evenArgList{
+				args:    map[string]*eventArgItemList{},
 				counter: 0,
 			},
 		},
@@ -1939,7 +1939,7 @@ func Test_newArgList(t *testing.T) {
 
 func Test_argList_addArg(t *testing.T) {
 	type fields struct {
-		args    map[string]*itemList
+		args    map[string]*eventArgItemList
 		counter int
 	}
 	type args struct {
@@ -1949,12 +1949,12 @@ func Test_argList_addArg(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   argList
+		want   evenArgList
 	}{
 		{
 			name: "add new",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -1975,8 +1975,8 @@ func Test_argList_addArg(t *testing.T) {
 			args: args{
 				arg: "arg_3",
 			},
-			want: argList{
-				args: map[string]*itemList{
+			want: evenArgList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2002,7 +2002,7 @@ func Test_argList_addArg(t *testing.T) {
 		{
 			name: "existing",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2023,8 +2023,8 @@ func Test_argList_addArg(t *testing.T) {
 			args: args{
 				arg: "arg_2",
 			},
-			want: argList{
-				args: map[string]*itemList{
+			want: evenArgList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2046,13 +2046,13 @@ func Test_argList_addArg(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			al := &argList{
+			al := &evenArgList{
 				args:    tt.fields.args,
 				counter: tt.fields.counter,
 			}
 			al.addArg(tt.args.arg)
 			if !reflect.DeepEqual(*al, tt.want) {
-				t.Errorf("argList.addArg() argList = %v, want %v", *al, tt.want)
+				t.Errorf("evenArgList.addArg() evenArgList = %v, want %v", *al, tt.want)
 			}
 		})
 	}
@@ -2062,7 +2062,7 @@ func Test_argList_addArg(t *testing.T) {
 
 func Test_argList_addItem(t *testing.T) {
 	type fields struct {
-		args    map[string]*itemList
+		args    map[string]*eventArgItemList
 		counter int
 	}
 	type args struct {
@@ -2074,12 +2074,12 @@ func Test_argList_addItem(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   argList
+		want   evenArgList
 	}{
 		{
 			name: "append to empty",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2101,8 +2101,8 @@ func Test_argList_addItem(t *testing.T) {
 				arg:  "arg_1",
 				item: "new item",
 			},
-			want: argList{
-				args: map[string]*itemList{
+			want: evenArgList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{
 							0: "new item",
@@ -2126,7 +2126,7 @@ func Test_argList_addItem(t *testing.T) {
 		{
 			name: "append to not empty",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2148,8 +2148,8 @@ func Test_argList_addItem(t *testing.T) {
 				arg:  "arg_2",
 				item: "new item",
 			},
-			want: argList{
-				args: map[string]*itemList{
+			want: evenArgList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2172,7 +2172,7 @@ func Test_argList_addItem(t *testing.T) {
 		{
 			name: "add to not empty",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2195,8 +2195,8 @@ func Test_argList_addItem(t *testing.T) {
 				item: "new item",
 				key:  []int{100},
 			},
-			want: argList{
-				args: map[string]*itemList{
+			want: evenArgList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2219,7 +2219,7 @@ func Test_argList_addItem(t *testing.T) {
 		{
 			name: "replace in not empty",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2242,8 +2242,8 @@ func Test_argList_addItem(t *testing.T) {
 				item: "new item",
 				key:  []int{42},
 			},
-			want: argList{
-				args: map[string]*itemList{
+			want: evenArgList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2265,13 +2265,13 @@ func Test_argList_addItem(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			al := &argList{
+			al := &evenArgList{
 				args:    tt.fields.args,
 				counter: tt.fields.counter,
 			}
 			al.addItem(tt.args.arg, tt.args.item, tt.args.key...)
 			if !reflect.DeepEqual(*al, tt.want) {
-				t.Errorf("argList.addItem() argList = %v, want %v", *al, tt.want)
+				t.Errorf("evenArgList.addItem() evenArgList = %v, want %v", *al, tt.want)
 			}
 		})
 	}
@@ -2281,7 +2281,7 @@ func Test_argList_addItem(t *testing.T) {
 
 func Test_argList_remove(t *testing.T) {
 	type fields struct {
-		args    map[string]*itemList
+		args    map[string]*eventArgItemList
 		counter int
 	}
 	type args struct {
@@ -2292,12 +2292,12 @@ func Test_argList_remove(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   argList
+		want   evenArgList
 	}{
 		{
 			name: "remove from empty",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2319,8 +2319,8 @@ func Test_argList_remove(t *testing.T) {
 				arg:  "arg_1",
 				keys: []int{100},
 			},
-			want: argList{
-				args: map[string]*itemList{
+			want: evenArgList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2342,7 +2342,7 @@ func Test_argList_remove(t *testing.T) {
 		{
 			name: "remove existing",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2364,8 +2364,8 @@ func Test_argList_remove(t *testing.T) {
 				arg:  "arg_2",
 				keys: []int{200, 99},
 			},
-			want: argList{
-				args: map[string]*itemList{
+			want: evenArgList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2385,7 +2385,7 @@ func Test_argList_remove(t *testing.T) {
 		{
 			name: "remove some existing",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2407,8 +2407,8 @@ func Test_argList_remove(t *testing.T) {
 				arg:  "arg_2",
 				keys: []int{99, 100},
 			},
-			want: argList{
-				args: map[string]*itemList{
+			want: evenArgList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2429,7 +2429,7 @@ func Test_argList_remove(t *testing.T) {
 		{
 			name: "remove arg",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2450,8 +2450,8 @@ func Test_argList_remove(t *testing.T) {
 			args: args{
 				arg: "arg_1",
 			},
-			want: argList{
-				args: map[string]*itemList{
+			want: evenArgList{
+				args: map[string]*eventArgItemList{
 					"arg_2": {
 						original: map[int]any{
 							6:   "six",
@@ -2469,13 +2469,13 @@ func Test_argList_remove(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			al := &argList{
+			al := &evenArgList{
 				args:    tt.fields.args,
 				counter: tt.fields.counter,
 			}
 			al.remove(tt.args.arg, tt.args.keys...)
 			if !reflect.DeepEqual(*al, tt.want) {
-				t.Errorf("argList.remove() argList = %v, want %v", *al, tt.want)
+				t.Errorf("evenArgList.remove() evenArgList = %v, want %v", *al, tt.want)
 			}
 		})
 	}
@@ -2485,7 +2485,7 @@ func Test_argList_remove(t *testing.T) {
 
 func Test_argList_count(t *testing.T) {
 	type fields struct {
-		args    map[string]*itemList
+		args    map[string]*eventArgItemList
 		counter int
 	}
 	type args struct {
@@ -2500,7 +2500,7 @@ func Test_argList_count(t *testing.T) {
 		{
 			name: "count all",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{
 							69: "syxty-nine",
@@ -2530,7 +2530,7 @@ func Test_argList_count(t *testing.T) {
 		{
 			name: "count single",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{
 							69: "syxty-nine",
@@ -2560,7 +2560,7 @@ func Test_argList_count(t *testing.T) {
 		{
 			name: "count empty",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{
 							69: "syxty-nine",
@@ -2584,7 +2584,7 @@ func Test_argList_count(t *testing.T) {
 		{
 			name: "count non-existing",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{
 							69: "syxty-nine",
@@ -2614,7 +2614,7 @@ func Test_argList_count(t *testing.T) {
 		{
 			name: "count multi",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{
 							69: "syxty-nine",
@@ -2653,12 +2653,12 @@ func Test_argList_count(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			al := &argList{
+			al := &evenArgList{
 				args:    tt.fields.args,
 				counter: tt.fields.counter,
 			}
 			if got := al.count(tt.args.args...); got != tt.want {
-				t.Errorf("argList.count() = %v, want %v", got, tt.want)
+				t.Errorf("evenArgList.count() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -2668,7 +2668,7 @@ func Test_argList_count(t *testing.T) {
 
 func Test_argList_isEmpty(t *testing.T) {
 	type fields struct {
-		args    map[string]*itemList
+		args    map[string]*eventArgItemList
 		counter int
 	}
 	type args struct {
@@ -2683,7 +2683,7 @@ func Test_argList_isEmpty(t *testing.T) {
 		{
 			name: "empty",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2709,7 +2709,7 @@ func Test_argList_isEmpty(t *testing.T) {
 		{
 			name: "not empty",
 			fields: fields{
-				args: map[string]*itemList{
+				args: map[string]*eventArgItemList{
 					"arg_1": {
 						original: map[int]any{},
 						sorted:   []any{},
@@ -2735,7 +2735,7 @@ func Test_argList_isEmpty(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			al := &argList{
+			al := &evenArgList{
 				args:    tt.fields.args,
 				counter: tt.fields.counter,
 			}
@@ -2751,11 +2751,11 @@ func Test_argList_isEmpty(t *testing.T) {
 func Test_newArgument(t *testing.T) {
 	tests := []struct {
 		name string
-		want *itemList
+		want *eventArgItemList
 	}{
 		{
 			name: "default",
-			want: &itemList{
+			want: &eventArgItemList{
 				original: map[int]any{},
 				sorted:   []any{},
 			},
@@ -2786,7 +2786,7 @@ func Test_itemList_set(t *testing.T) {
 		fields  fields
 		args    args
 		want    bool
-		wantArg itemList
+		wantArg eventArgItemList
 	}{
 		{
 			name: "new",
@@ -2804,7 +2804,7 @@ func Test_itemList_set(t *testing.T) {
 				item: "forty-two",
 			},
 			want: true,
-			wantArg: itemList{
+			wantArg: eventArgItemList{
 				original: map[int]any{
 					6:   "six",
 					7:   "seven",
@@ -2831,7 +2831,7 @@ func Test_itemList_set(t *testing.T) {
 				item: "ninety-nine and a half",
 			},
 			want: false,
-			wantArg: itemList{
+			wantArg: eventArgItemList{
 				original: map[int]any{
 					6:   "six",
 					7:   "seven",
@@ -2844,15 +2844,15 @@ func Test_itemList_set(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			il := &itemList{
+			il := &eventArgItemList{
 				original: tt.fields.original,
 				sorted:   tt.fields.sorted,
 			}
 			if got := il.set(tt.args.key, tt.args.item); got != tt.want {
-				t.Errorf("itemList.setItem() = %v, want %v", got, tt.want)
+				t.Errorf("eventArgItemList.setItem() = %v, want %v", got, tt.want)
 			}
 			if !reflect.DeepEqual(*il, tt.wantArg) {
-				t.Errorf("itemList.setItem() itemList = %v, want %v", *il, tt.wantArg)
+				t.Errorf("eventArgItemList.setItem() eventArgItemList = %v, want %v", *il, tt.wantArg)
 			}
 		})
 	}
@@ -2873,7 +2873,7 @@ func Test_itemList_append(t *testing.T) {
 		fields  fields
 		args    args
 		want    bool
-		wantArg itemList
+		wantArg eventArgItemList
 	}{
 		{
 			name: "append",
@@ -2890,7 +2890,7 @@ func Test_itemList_append(t *testing.T) {
 				item: "forty-two",
 			},
 			want: true,
-			wantArg: itemList{
+			wantArg: eventArgItemList{
 				original: map[int]any{
 					6:   "six",
 					7:   "seven",
@@ -2916,7 +2916,7 @@ func Test_itemList_append(t *testing.T) {
 				item: "forty-two",
 			},
 			want: false,
-			wantArg: itemList{
+			wantArg: eventArgItemList{
 				original: map[int]any{
 					6:           "six",
 					7:           "seven",
@@ -2929,15 +2929,15 @@ func Test_itemList_append(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			il := &itemList{
+			il := &eventArgItemList{
 				original: tt.fields.original,
 				sorted:   tt.fields.sorted,
 			}
 			if got := il.append(tt.args.item); got != tt.want {
-				t.Errorf("itemList.appendItem() = %v, want %v", got, tt.want)
+				t.Errorf("eventArgItemList.appendItem() = %v, want %v", got, tt.want)
 			}
 			if !reflect.DeepEqual(*il, tt.wantArg) {
-				t.Errorf("itemList.appendItem() itemList = %v, want %v", *il, tt.wantArg)
+				t.Errorf("eventArgItemList.appendItem() eventArgItemList = %v, want %v", *il, tt.wantArg)
 			}
 		})
 	}
@@ -2958,7 +2958,7 @@ func Test_itemList_remove(t *testing.T) {
 		fields  fields
 		args    args
 		want    bool
-		wantArg itemList
+		wantArg eventArgItemList
 	}{
 		{
 			name: "existing",
@@ -2976,7 +2976,7 @@ func Test_itemList_remove(t *testing.T) {
 				key: 42,
 			},
 			want: true,
-			wantArg: itemList{
+			wantArg: eventArgItemList{
 				original: map[int]any{
 					6:   "six",
 					7:   "seven",
@@ -3002,7 +3002,7 @@ func Test_itemList_remove(t *testing.T) {
 				key: 69,
 			},
 			want: false,
-			wantArg: itemList{
+			wantArg: eventArgItemList{
 				original: map[int]any{
 					6:   "six",
 					7:   "seven",
@@ -3016,15 +3016,15 @@ func Test_itemList_remove(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			il := &itemList{
+			il := &eventArgItemList{
 				original: tt.fields.original,
 				sorted:   tt.fields.sorted,
 			}
 			if got := il.remove(tt.args.key); got != tt.want {
-				t.Errorf("itemList.removeItem() = %v, want %v", got, tt.want)
+				t.Errorf("eventArgItemList.removeItem() = %v, want %v", got, tt.want)
 			}
 			if !reflect.DeepEqual(*il, tt.wantArg) {
-				t.Errorf("itemList.removeItem() itemList = %v, want %v", *il, tt.wantArg)
+				t.Errorf("eventArgItemList.removeItem() eventArgItemList = %v, want %v", *il, tt.wantArg)
 			}
 		})
 	}
@@ -3079,13 +3079,13 @@ func Test_itemList_sort(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			il := &itemList{
+			il := &eventArgItemList{
 				original: tt.fields.original,
 				sorted:   tt.fields.sorted,
 			}
 			il.sort()
 			if !reflect.DeepEqual(il.sorted, tt.want) {
-				t.Errorf("itemList.setItem() = %v, want %v", il.sorted, tt.want)
+				t.Errorf("eventArgItemList.setItem() = %v, want %v", il.sorted, tt.want)
 			}
 		})
 	}
@@ -3128,12 +3128,12 @@ func Test_itemList_count(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			il := &itemList{
+			il := &eventArgItemList{
 				original: tt.fields.original,
 				sorted:   tt.fields.sorted,
 			}
 			if got := il.count(); got != tt.want {
-				t.Errorf("itemList.count() = %v, want %v", got, tt.want)
+				t.Errorf("eventArgItemList.count() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -3176,12 +3176,12 @@ func Test_itemList_isEmpty(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			il := &itemList{
+			il := &eventArgItemList{
 				original: tt.fields.original,
 				sorted:   tt.fields.sorted,
 			}
 			if got := il.isEmpty(); got != tt.want {
-				t.Errorf("itemList.isEmpty() = %v, want %v", got, tt.want)
+				t.Errorf("eventArgItemList.isEmpty() = %v, want %v", got, tt.want)
 			}
 		})
 	}
