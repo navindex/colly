@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/kennygrant/sanitize"
 )
 
 // ------------------------------------------------------------------------
@@ -54,6 +57,21 @@ var (
 // Error implements error interface.
 func (e *MaxVisitReachedError) Error() string {
 	return fmt.Sprintf("%q already visited %d times", e.Destination, e.Visits)
+}
+
+// ------------------------------------------------------------------------
+
+// SanitizeFileName replaces dangerous characters in a string
+// so the return value can be used as a safe file name.
+func SanitizeFileName(fileName string) string {
+	ext := sanitize.BaseName(filepath.Ext(fileName))
+	name := sanitize.BaseName(fileName[:len(fileName)-len(ext)])
+
+	if ext == "" {
+		ext = ".unknown"
+	}
+
+	return strings.Replace(name+ext, "-", "_", -1)
 }
 
 // ------------------------------------------------------------------------
