@@ -15,14 +15,6 @@ import (
 
 type RuleEnforcer interface{}
 
-// Proxy represents a proxy service.
-type Proxy interface{}
-
-type Cache interface {
-	// CanBeCached(request *http.Request) bool
-	Save(key string, value []byte) error
-}
-
 // MaxVisitReachedError is the error type for already visited URLs.
 // It's returned synchronously by Visit when the URL passed to Visit is already visited.
 // When already visited URL is encountered after following
@@ -50,6 +42,8 @@ var (
 	ErrEmptyProxyURL       = errors.New("proxy URL list is empty")                  // ErrEmptyProxyURL is thrown for empty Proxy URL list.
 	ErrAbortedAfterHeaders = errors.New("aborted after receiving response headers") // ErrAbortedAfterHeaders is returned when OnResponseHeaders aborts the transfer.
 	ErrQueueFull           = errors.New("maximum queue size reached")               // ErrQueueFull is returned when the queue is full.
+	ErrCacheNoStorage      = errors.New("missing cache storage")                    // ErrCacheNoStorage is thrown when an attempt was made to create a Cache without a storage.
+	ErrCacheSNoExpHandler  = errors.New("missing cache expiry handler")             // ErrCacheSNoExpHandler is thrown when an attempt was made to create a Cache without an expiry handler.
 )
 
 // ------------------------------------------------------------------------
