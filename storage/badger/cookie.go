@@ -8,14 +8,10 @@ type stgCookie struct {
 
 // ------------------------------------------------------------------------
 
-var prefixCookie = []byte{2, 0}
-
-// ------------------------------------------------------------------------
-
 // NewCookieStorage returns a pointer to a newly created BadgerDB cookie storage.
 func NewCookieStorage(path string, keepData bool) (*stgCookie, error) {
 	cfg := config{
-		prefix:      prefixCookie,
+		prefix:      []byte{byte(TYPE_COOKIE), 0},
 		clearOnOpen: !keepData,
 	}
 

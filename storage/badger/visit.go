@@ -10,14 +10,10 @@ type visitStorage struct {
 
 // ------------------------------------------------------------------------
 
-var prefixVisit = []byte{1, 0}
-
-// ------------------------------------------------------------------------
-
 // NewVisitMemoryStorage returns a pointer to a newly created BadgerDB visit storage.
 func NewVisitStorage(path string, keepData bool) (*visitStorage, error) {
 	cfg := config{
-		prefix:      prefixVisit,
+		prefix:      []byte{byte(TYPE_VISIT), 0},
 		clearOnOpen: !keepData,
 	}
 

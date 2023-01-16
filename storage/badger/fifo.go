@@ -15,14 +15,10 @@ type stgFIFO struct {
 
 // ------------------------------------------------------------------------
 
-var prefixFIFO = []byte{3, 0}
-
-// ------------------------------------------------------------------------
-
 // NewFIFOStorage returns a pointer to a newly created BadgerDB FIFO storage.
 func NewFIFOStorage(path string, keepData bool) (*stgFIFO, error) {
 	cfg := config{
-		prefix:      prefixFIFO,
+		prefix:      []byte{byte(TYPE_FIFO), 0},
 		clearOnOpen: !keepData,
 	}
 

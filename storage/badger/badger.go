@@ -30,6 +30,17 @@ type config struct {
 	clearOnOpen bool
 }
 
+type dataType byte
+
+// ------------------------------------------------------------------------
+
+const (
+	TYPE_VISIT dataType = iota
+	TYPE_COOKIE
+	TYPE_FIFO
+	TYPE_CACHE
+)
+
 // ------------------------------------------------------------------------
 
 // Database list indexed by path
