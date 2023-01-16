@@ -68,7 +68,7 @@ func (s *stgCache) Put(key string, item io.Reader) error {
 // Fetch retrieves a cached item from the storage.
 func (s *stgCache) Fetch(key string) (io.Reader, error) {
 	data, err := s.s.Get([]byte(key))
-	if err != nil {
+	if err != nil || data == nil {
 		return nil, err
 	}
 

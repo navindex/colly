@@ -34,9 +34,8 @@ func (s *stgCache) Close() error {
 	}
 
 	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	s.cache = nil
+	s.lock.Unlock()
 
 	return nil
 }
@@ -50,9 +49,8 @@ func (s *stgCache) Clear() error {
 	}
 
 	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	s.cache = map[string][]byte{}
+	s.lock.Unlock()
 
 	return nil
 }
@@ -85,9 +83,8 @@ func (s *stgCache) Put(key string, item io.Reader) error {
 	}
 
 	s.lock.Lock()
-	defer s.lock.Unlock()
-
 	s.cache[key] = data
+	s.lock.Unlock()
 
 	return nil
 }
@@ -102,7 +99,7 @@ func (s *stgCache) Fetch(key string) (io.Reader, error) {
 
 	s.lock.RLock()
 	data, present := s.cache[key]
-	defer s.lock.RUnlock()
+	s.lock.RUnlock()
 
 	if !present {
 		return nil, nil
@@ -121,7 +118,7 @@ func (s *stgCache) Has(key string) bool {
 
 	s.lock.RLock()
 	_, present := s.cache[key]
-	defer s.lock.RUnlock()
+	s.lock.RUnlock()
 
 	return present
 }
@@ -130,7 +127,9 @@ func (s *stgCache) Has(key string) bool {
 
 // Remove deletes a stored item by key.
 func (s *stgCache) Remove(key string) error {
+	s.lock.Lock()
 	delete(s.cache, key)
+	s.lock.Unlock()
 
 	return nil
 }
