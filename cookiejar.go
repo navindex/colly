@@ -19,14 +19,15 @@ import (
 
 // ------------------------------------------------------------------------
 
+// CookieStorage manages a storage that saves, deletes and retrieves cookies.
 type CookieStorage interface {
 	Set(key string, entries []byte) error // Set sets the entries in binary format.
 	Get(key string) ([]byte, error)       // Get retrieves the entries in binary format.
 	Remove(key string)                    // Remove removes the entries by key.
 }
 
-// Jar implements the http.CookieJar interface from the net/http package.
-type Jar struct {
+// cookieJar implements the http.CookieJar interface from the net/http package.
+type cookieJar struct {
 	psList cookiejar.PublicSuffixList
 	lock   *sync.Mutex
 
@@ -102,7 +103,7 @@ func NewCookieJar(storage CookieStorage, o *cookiejar.Options) (http.CookieJar, 
 		return cookiejar.New(o)
 	}
 
-	jar := &Jar{
+	jar := &cookieJar{
 		storage: storage,
 	}
 
@@ -131,7 +132,7 @@ func DecodeBinaryToEntries(data []byte) (entries, error) {
 
 // Cookies implements the Cookies method of the http.CookieJar interface.
 // It returns an empty slice if the URL's scheme is not HTTP or HTTPS.
-func (j *Jar) Cookies(u *url.URL) (cookies []*http.Cookie) {
+func (j *cookieJar) Cookies(u *url.URL) (cookies []*http.Cookie) {
 	return j.cookies(u, time.Now())
 }
 
@@ -140,14 +141,14 @@ func (j *Jar) Cookies(u *url.URL) (cookies []*http.Cookie) {
 // SetCookies implements the SetCookies method of the http.CookieJar interface.
 //
 // It does nothing if the URL's scheme is not HTTP or HTTPS.
-func (j *Jar) SetCookies(u *url.URL, cookies []*http.Cookie) {
+func (j *cookieJar) SetCookies(u *url.URL, cookies []*http.Cookie) {
 	j.setCookies(u, cookies, time.Now())
 }
 
 // ------------------------------------------------------------------------
 
 // cookies is like Cookies but takes the current time as a parameter.
-func (j *Jar) cookies(u *url.URL, now time.Time) (cookies []*http.Cookie) {
+func (j *cookieJar) cookies(u *url.URL, now time.Time) (cookies []*http.Cookie) {
 	if u.Scheme != "http" && u.Scheme != "https" {
 		return nil
 	}
@@ -227,7 +228,7 @@ func (j *Jar) cookies(u *url.URL, now time.Time) (cookies []*http.Cookie) {
 // ------------------------------------------------------------------------
 
 // setCookies is like SetCookies but takes the current time as parameter.
-func (j *Jar) setCookies(u *url.URL, cookies []*http.Cookie, now time.Time) {
+func (j *cookieJar) setCookies(u *url.URL, cookies []*http.Cookie, now time.Time) {
 	if len(cookies) == 0 {
 		return
 	}
@@ -314,7 +315,7 @@ func (j *Jar) setCookies(u *url.URL, cookies []*http.Cookie, now time.Time) {
 // be valid to call e.id (which depends on e's Name, Domain and Path).
 //
 // A malformed c.Domain will result in an error.
-func (j *Jar) newEntry(c *http.Cookie, now time.Time, defPath, host string) (e entry, remove bool, err error) {
+func (j *cookieJar) newEntry(c *http.Cookie, now time.Time, defPath, host string) (e entry, remove bool, err error) {
 	e.Name = c.Name
 
 	if c.Path == "" || c.Path[0] != '/' {
@@ -366,7 +367,7 @@ func (j *Jar) newEntry(c *http.Cookie, now time.Time, defPath, host string) (e e
 // ------------------------------------------------------------------------
 
 // domainAndType determines the cookie's domain and hostOnly attribute.
-func (j *Jar) domainAndType(host, domain string) (string, bool, error) {
+func (j *cookieJar) domainAndType(host, domain string) (string, bool, error) {
 	if domain == "" {
 		// No domain attribute in the SetCookie header indicates a
 		// host cookie.
