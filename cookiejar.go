@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/cookiejar"
@@ -21,9 +22,9 @@ import (
 
 // CookieStorage manages a storage that saves, deletes and retrieves cookies.
 type CookieStorage interface {
-	Set(key string, entries []byte) error // Set sets the entries in binary format.
-	Get(key string) ([]byte, error)       // Get retrieves the entries in binary format.
-	Remove(key string)                    // Remove removes the entries by key.
+	Set(key string, entries io.Reader) error // Set sets the entries in binary format.
+	Get(key string) (io.Reader, error)       // Get retrieves the entries in binary format.
+	Remove(key string)                       // Remove removes the entries by key.
 }
 
 // cookieJar implements the http.CookieJar interface from the net/http package.
@@ -117,13 +118,10 @@ func NewCookieJar(storage CookieStorage, o *cookiejar.Options) (http.CookieJar, 
 // ------------------------------------------------------------------------
 
 // DecodeBinaryToEntries encodes the entry submap to bytes.
-func DecodeBinaryToEntries(data []byte) (entries, error) {
-	// Convert byte slice to io.Reader
-	reader := bytes.NewReader(data)
-
+func DecodeBinaryToEntries(data io.Reader) (entries, error) {
 	// Decode to a slice of cookies
 	var e entries
-	err := gob.NewDecoder(reader).Decode(&e)
+	err := gob.NewDecoder(data).Decode(&e)
 
 	return e, err
 }
@@ -460,11 +458,11 @@ func (j *cookieJar) domainAndType(host, domain string) (string, bool, error) {
 // ------------------------------------------------------------------------
 
 // BinaryEncode encodes the entry submap to bytes.
-func (e entries) BinaryEncode() ([]byte, error) {
-	b := &bytes.Buffer{}
-	err := gob.NewEncoder(b).Encode(e)
+func (e entries) BinaryEncode() (io.Reader, error) {
+	data := &bytes.Buffer{}
+	err := gob.NewEncoder(data).Encode(e)
 
-	return b.Bytes(), err
+	return data, err
 }
 
 // ------------------------------------------------------------------------

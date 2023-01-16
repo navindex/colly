@@ -1,5 +1,10 @@
 package badger
 
+import (
+	"bytes"
+	"io"
+)
+
 // ------------------------------------------------------------------------
 
 type stgCookie struct {
@@ -49,15 +54,22 @@ func (s *stgCookie) Len() (uint, error) {
 // ------------------------------------------------------------------------
 
 // Set stores cookies for a given host.
-func (s *stgCookie) Set(key string, cookies []byte) error {
-	return s.s.Set([]byte(key), cookies)
+func (s *stgCookie) Set(key string, cookies io.Reader) error {
+	data, err := io.ReadAll(cookies)
+	if err != nil {
+		return err
+	}
+
+	return s.s.Set([]byte(key), data)
 }
 
 // ------------------------------------------------------------------------
 
 // Get retrieves stored cookies for a given host.
-func (s *stgCookie) Get(key string) ([]byte, error) {
-	return s.s.Get([]byte(key))
+func (s *stgCookie) Get(key string) (io.Reader, error) {
+	data, err := s.s.Get([]byte(key))
+
+	return bytes.NewReader(data), err
 }
 
 // ------------------------------------------------------------------------

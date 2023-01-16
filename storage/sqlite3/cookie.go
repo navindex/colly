@@ -1,5 +1,10 @@
 package sqlite3
 
+import (
+	"bytes"
+	"io"
+)
+
 // ------------------------------------------------------------------------
 
 type Storable interface {
@@ -72,11 +77,15 @@ func (s *stgCookie) Len() (uint, error) {
 // ------------------------------------------------------------------------
 
 // Set stores cookies for a given host.
-func (s *stgCookie) Set(key string, data []byte) error {
-	s.s.lock.Lock()
-	defer s.s.lock.Unlock()
+func (s *stgCookie) Set(key string, cookies io.Reader) error {
+	data, err := io.ReadAll(cookies)
+	if err != nil {
+		return err
+	}
 
-	_, err := s.s.stmts["insert"].Exec(key, data)
+	s.s.lock.Lock()
+	_, err = s.s.stmts["insert"].Exec(key, data)
+	s.s.lock.Unlock()
 
 	return err
 }
@@ -84,15 +93,14 @@ func (s *stgCookie) Set(key string, data []byte) error {
 // ------------------------------------------------------------------------
 
 // Get retrieves stored cookies for a given host.
-func (s *stgCookie) Get(key string) ([]byte, error) {
+func (s *stgCookie) Get(key string) (io.Reader, error) {
 	var data = []byte{}
 
 	s.s.lock.Lock()
-	defer s.s.lock.Unlock()
-
 	err := s.s.stmts["select"].QueryRow(key).Scan(&data)
+	s.s.lock.Unlock()
 
-	return data, err
+	return bytes.NewReader(data), err
 }
 
 // ------------------------------------------------------------------------
@@ -100,9 +108,8 @@ func (s *stgCookie) Get(key string) ([]byte, error) {
 // Remove deletes stored cookies for a given host.
 func (s *stgCookie) Remove(key string) error {
 	s.s.lock.Lock()
-	defer s.s.lock.Unlock()
-
 	_, err := s.s.stmts["delete"].Exec(key)
+	s.s.lock.Unlock()
 
 	return err
 }

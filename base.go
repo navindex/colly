@@ -117,3 +117,20 @@ func IsFalsy(str string) bool {
 
 	return err == nil && !val
 }
+
+// ------------------------------------------------------------------------
+
+// InSlice checks if a slice contains a given value.
+func InSlice[E comparable](needle E, haystack []E) bool {
+	if len(haystack) == 0 {
+		return false
+	}
+
+	for _, e := range haystack {
+		if needle == e {
+			return true
+		}
+	}
+
+	return false
+}
