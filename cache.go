@@ -97,7 +97,7 @@ func (c *cache) Get(url string) (*Response, error) {
 	key := c.keyFromURL(url)
 
 	data, err := c.stg.Fetch(key)
-	if err != nil {
+	if err != nil || data == nil {
 		return nil, err
 	}
 
