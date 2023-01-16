@@ -57,7 +57,7 @@ func (s *stgCache) Clear() error {
 
 // ------------------------------------------------------------------------
 
-// Len returns the number of request caches in the in-memory cache storage.
+// Len returns the number of items in the in-memory cache storage.
 func (s *stgCache) Len() (uint, error) {
 	if s.cache == nil {
 		return 0, storage.ErrStorageClosed

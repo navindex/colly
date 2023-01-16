@@ -25,6 +25,7 @@ var (
 	ErrStorageClosed    = errors.New("storage is closed")
 	ErrBlankPath        = errors.New("no storage path was given")
 	ErrBlankKey         = errors.New("no key was given")
+	ErrInvalidKey       = errors.New("invalid key")
 	ErrBlankTableName   = errors.New("no table name was given")
 	ErrInvalidType      = errors.New("invalid storage type")
 	ErrStorageLimit     = errors.New("unable to connect to the database, storage limit exceeded")
