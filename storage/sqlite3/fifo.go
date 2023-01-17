@@ -2,9 +2,10 @@
 package sqlite3
 
 import (
+	"bytes"
 	"colly/storage"
 	"database/sql"
-	"net/url"
+	"io"
 )
 
 // ------------------------------------------------------------------------
@@ -75,11 +76,15 @@ func (s *stgFIFO) Len() (uint, error) {
 // ------------------------------------------------------------------------
 
 // Push inserts an item into the SQLite3 FIFO storage.
-func (s *stgFIFO) Push(item []byte) error {
-	s.s.lock.Lock()
-	defer s.s.lock.Unlock()
+func (s *stgFIFO) Push(item io.Reader) error {
+	data, err := io.ReadAll(item)
+	if err != nil {
+		return err
+	}
 
-	_, err := s.s.stmts["insert"].Exec(item)
+	s.s.lock.Lock()
+	_, err = s.s.stmts["insert"].Exec(data)
+	s.s.lock.Unlock()
 
 	return err
 }
@@ -87,13 +92,13 @@ func (s *stgFIFO) Push(item []byte) error {
 // ------------------------------------------------------------------------
 
 // Pop pops the oldest item from the FIFO storage or returns error if the storage is empty.
-func (s *stgFIFO) Pop(u *url.URL) ([]byte, error) {
-	var item = []byte{}
+func (s *stgFIFO) Pop() (io.Reader, error) {
+	var data = []byte{}
 
 	s.s.lock.Lock()
-	defer s.s.lock.Unlock()
-
-	if err := s.s.stmts["delete"].QueryRow(u.Host).Scan(&item); err != nil {
+	err := s.s.stmts["delete"].QueryRow().Scan(&data)
+	s.s.lock.Unlock()
+	if err != nil {
 		if err == sql.ErrNoRows {
 			err = storage.ErrStorageEmpty
 		}
@@ -101,19 +106,19 @@ func (s *stgFIFO) Pop(u *url.URL) ([]byte, error) {
 		return nil, err
 	}
 
-	return item, nil
+	return bytes.NewReader(data), nil
 }
 
 // ------------------------------------------------------------------------
 
 // Peek returns the oldest item from the FIFO storage without removing it.
-func (s *stgFIFO) Peek() ([]byte, error) {
-	var item = []byte{}
+func (s *stgFIFO) Peek() (io.Reader, error) {
+	var data = []byte{}
 
 	s.s.lock.Lock()
-	defer s.s.lock.Unlock()
-
-	if err := s.s.stmts["select"].QueryRow().Scan(&item); err != nil {
+	err := s.s.stmts["select"].QueryRow().Scan(&data)
+	s.s.lock.Unlock()
+	if err != nil {
 		if err == sql.ErrNoRows {
 			err = storage.ErrStorageEmpty
 		}
@@ -121,5 +126,5 @@ func (s *stgFIFO) Peek() ([]byte, error) {
 		return nil, err
 	}
 
-	return item, nil
+	return bytes.NewReader(data), nil
 }

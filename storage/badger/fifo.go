@@ -1,8 +1,11 @@
 package badger
 
 import (
+	"bytes"
 	"colly/storage"
-	"net/url"
+	"encoding/binary"
+	"io"
+	"time"
 
 	"github.com/dgraph-io/badger/v3"
 )
@@ -56,22 +59,26 @@ func (s *stgFIFO) Len() (uint, error) {
 // ------------------------------------------------------------------------
 
 // Push inserts an item into the BadgerDB FIFO storage.
-func (s *stgFIFO) Push(item []byte) error {
-	return s.s.Set(storage.CurrentTimeToBytes(), item)
+func (s *stgFIFO) Push(item io.Reader) error {
+	data, err := io.ReadAll(item)
+	if err != nil {
+		return err
+	}
 
+	return s.s.Set(encodeTime(time.Now()), data)
 }
 
 // ------------------------------------------------------------------------
 
 // Pop pops the oldest item from the FIFO storage or returns error if the storage is empty.
-func (s *stgFIFO) Pop(u *url.URL) ([]byte, error) {
+func (s *stgFIFO) Pop() (io.Reader, error) {
 	return s.headValue(true)
 }
 
 // ------------------------------------------------------------------------
 
 // Peek returns the oldest item from the queue without removing it.
-func (s *stgFIFO) Peek() ([]byte, error) {
+func (s *stgFIFO) Peek() (io.Reader, error) {
 	return s.headValue(false)
 }
 
@@ -81,21 +88,15 @@ func (s *stgFIFO) headKey() ([]byte, error) {
 	var key []byte
 
 	opt := badger.DefaultIteratorOptions
-
 	err := s.s.db.dbh.View(func(txn *badger.Txn) error {
-		epoch := uint64(0)
 		it := txn.NewIterator(opt)
 		defer it.Close()
-
 		for it.Rewind(); it.ValidForPrefix(s.s.config.prefix); it.Next() {
 			iKey := it.Item().Key()
-			iEpoch := storage.BytesToUint64(iKey)
-
-			if iEpoch < epoch || epoch == 0 {
-				key, epoch = iKey, iEpoch
+			if bytes.Compare(key, iKey) == -1 {
+				copy(key, iKey)
 			}
 		}
-
 		return nil
 	})
 
@@ -104,43 +105,50 @@ func (s *stgFIFO) headKey() ([]byte, error) {
 
 // ------------------------------------------------------------------------
 
-func (s *stgFIFO) headValue(remove bool) ([]byte, error) {
-	var (
-		key   []byte
-		value []byte
-		err   error
-	)
-
+func (s *stgFIFO) headValue(remove bool) (io.Reader, error) {
 	s.s.lock.Lock()
 	defer s.s.lock.Unlock()
 
 	// Find the head key
-	if key, err = s.headKey(); err != nil {
+	key, err := s.headKey()
+	if err != nil {
 		return nil, err
 	}
-
 	if len(key) == 0 {
 		return nil, storage.ErrStorageEmpty
 	}
 
 	// Get the value
+	var data []byte
 	err = s.s.db.dbh.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(key)
 		if err != nil {
 			return err
 		}
-
-		value, err = item.ValueCopy(value)
-
+		data, err = item.ValueCopy(nil)
 		return err
 	})
 
+	if err != nil {
+		return nil, err
+	}
+
 	// Delete the head key
-	if err == nil && remove {
+	if remove {
 		err = s.s.db.dbh.Update(func(txn *badger.Txn) error {
 			return txn.Delete(key)
 		})
 	}
 
-	return value, err
+	return bytes.NewReader(data), err
+}
+
+// ------------------------------------------------------------------------
+
+// encodeTime converts the time to bytes
+func encodeTime(t time.Time) []byte {
+	b := []byte{}
+	binary.BigEndian.PutUint64(b, uint64(t.Unix()))
+
+	return b
 }
