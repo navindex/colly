@@ -117,3 +117,20 @@ func InSlice[E comparable](needle E, haystack []E) bool {
 
 	return false
 }
+
+// ------------------------------------------------------------------------
+
+// ContainsAny reports whether any of substr is within s.
+func ContainsAny(s string, substr ...string) bool {
+	if len(substr) == 0 {
+		return false
+	}
+
+	for _, sub := range substr {
+		if strings.Contains(s, sub) {
+			return true
+		}
+	}
+
+	return false
+}

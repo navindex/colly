@@ -59,9 +59,10 @@ func (r *Response) setBody(detectCharset bool) error {
 		return nil
 	}
 
-	var contentType string
+	contentType := strings.ToLower(r.Resp.Header.Get("Content-Type"))
+
 	// Exit if content is not textual data
-	if contentType = strings.ToLower(r.Resp.Header.Get("Content-Type")); noTextualData(contentType) {
+	if noTextualData(contentType) {
 		return nil
 	}
 
@@ -73,7 +74,7 @@ func (r *Response) setBody(detectCharset bool) error {
 	// Exit if no charset with no detect or charset is utf8
 	hasCharset := strings.Contains(contentType, "charset")
 	if (!hasCharset && !detectCharset) ||
-		(hasCharset && (strings.Contains(contentType, "utf-8") || strings.Contains(contentType, "utf8"))) {
+		(hasCharset && ContainsAny(contentType, "utf-8", "utf8")) {
 		return nil
 	}
 
@@ -104,7 +105,7 @@ func (r *Response) setCreated() {
 
 func (r *Response) setExpiry() {
 	if cc := r.Resp.Header.Get("Cache-Control"); cc != "" {
-		if !strings.Contains(cc, "no-cache") && !strings.Contains(cc, "no-store") {
+		if ContainsAny(cc, "no-cache", "no-store") {
 			r.Expiry = r.Created
 
 			return
