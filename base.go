@@ -43,7 +43,8 @@ var (
 	ErrAbortedAfterHeaders = errors.New("aborted after receiving response headers") // ErrAbortedAfterHeaders is returned when OnResponseHeaders aborts the transfer.
 	ErrQueueFull           = errors.New("maximum queue size reached")               // ErrQueueFull is returned when the queue is full.
 	ErrCacheNoStorage      = errors.New("missing cache storage")                    // ErrCacheNoStorage is thrown when an attempt was made to create a Cache without a storage.
-	ErrCacheSNoExpHandler  = errors.New("missing cache expiry handler")             // ErrCacheSNoExpHandler is thrown when an attempt was made to create a Cache without an expiry handler.
+	ErrCacheNoPath         = errors.New("file cache path is blank")                 // ErrCacheNoPath is thrown when an attempt was made to create a file cache with a blank path.
+	ErrCacheNoExpHandler   = errors.New("missing cache expiry handler")             // ErrCacheNoExpHandler is thrown when an attempt was made to create a Cache without an expiry handler.
 )
 
 // ------------------------------------------------------------------------

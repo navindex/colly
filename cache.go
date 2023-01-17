@@ -64,7 +64,7 @@ func NewCache(cs CacheStorage, exp CacheExpiryHandler) (*cache, error) {
 	}
 
 	if exp == nil {
-		return nil, ErrCacheSNoExpHandler
+		return nil, ErrCacheNoExpHandler
 	}
 
 	c := &cache{

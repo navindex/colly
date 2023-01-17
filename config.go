@@ -1,8 +1,12 @@
 package colly
 
 import (
+	"colly/storage/filesys"
+	"colly/storage/mem"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -174,13 +178,19 @@ var (
 // Same default values are set.
 func NewConfig() *CollectorConfig {
 	jar, _ := NewCookieJar(nil, nil)
+	cache, _ := NewCache(mem.NewCacheStorage(), NewCacheExpiryByHeader())
 
 	return &CollectorConfig{
+		MaxDepth:            0,
+		MaxBodySize:         10 * 1024 * 1024,
+		MaxRevisit:          0,
+		IgnoreRobotsTxt:     true,
+		UserAgentCallback:   func(_ ...any) string { return "colly v3" },
+		Cache:               cache,
 		ParseStatusCallback: parseSuccessResponse,
 		FollowRedirects:     true,
 		CookieJar:           jar,
 		Parser:              NewWHATWGParser(),
-		// FIXME Cache: ...,
 	}
 }
 
@@ -237,6 +247,94 @@ func (c *CollectorConfig) SetDisallowedDomains(domains []string) error {
 	}
 
 	c.Filter.Append(FILTER_METHOD_EXCLUDE, DOMAIN_FILTER, f)
+
+	return nil
+}
+
+// SetUserAgent sets the user agent used by the Collector.
+func (c *CollectorConfig) SetUserAgent(ua string) {
+	c.UserAgentCallback = func(_ ...any) string {
+		return ua
+	}
+}
+
+// SetCustomHeaders sets the custom headers used by the Collector.
+func (c *CollectorConfig) SetCustomHeaders(headers map[string]string) {
+	customHdr := &http.Header{}
+	for header, value := range headers {
+		customHdr.Add(header, value)
+	}
+
+	c.HeaderCallback = func(_ ...any) *http.Header {
+		return customHdr
+	}
+}
+
+// SetTracer sets the request tracer.
+// If no attribute given, it will use a simple tracer.
+func (c *CollectorConfig) SetTracer(tracer ...Tracer) {
+	if len(tracer) > 0 {
+		c.Tracer = tracer[0]
+
+		return
+	}
+
+	c.Tracer = NewSimpleTracer()
+}
+
+// SetLogger sets the logger.
+// If no attribute given, it will use a standard logger.
+func (c *CollectorConfig) SetLogger(logger ...Logger) {
+	if len(logger) > 0 {
+		c.Logger = logger[0]
+
+		return
+	}
+
+	c.Logger = NewStdLogger(os.Stderr, "", log.LstdFlags)
+}
+
+// SetCache sets the request cache.
+// If no storage attribute given, it will use an in-memory cache.
+func (c *CollectorConfig) SetCache(storage CacheStorage, expHandler CacheExpiryHandler) error {
+	if storage == nil {
+		return ErrCacheNoStorage
+	}
+
+	if expHandler == nil {
+		return ErrCacheNoExpHandler
+	}
+
+	cache, err := NewCache(storage, expHandler)
+	if err != nil {
+		return err
+	}
+	c.Cache = cache
+
+	return nil
+}
+
+// SetCache sets the request cache.
+// If no expiry handler given, it will use the response cache headers.
+func (c *CollectorConfig) SetFileCache(path string, expHandler CacheExpiryHandler) error {
+	if path == "" {
+		return ErrCacheNoPath
+	}
+
+	storage, err := filesys.NewCacheStorage(path)
+	if err != nil {
+		return err
+	}
+
+	if expHandler == nil {
+		expHandler = NewCacheExpiryByHeader()
+	}
+
+	cache, err := NewCache(storage, expHandler)
+	if err != nil {
+		return err
+	}
+	c.Cache = cache
 
 	return nil
 }
