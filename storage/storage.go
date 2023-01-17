@@ -1,10 +1,8 @@
 package storage
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
-	"time"
 )
 
 // ------------------------------------------------------------------------
@@ -35,32 +33,3 @@ var (
 	ErrInvalidLength    = errors.New("max queue length must be positive or zero for no limit")
 	ErrMissingCmd       = func(cmd string) error { return fmt.Errorf("%s command is missing", cmd) }
 )
-
-// ------------------------------------------------------------------------
-
-// Uint64ToBytes converts uint64 to bytes.
-func Uint64ToBytes(i uint64) []byte {
-	b := []byte{}
-	binary.BigEndian.PutUint64(b, i)
-
-	return b
-}
-
-// ------------------------------------------------------------------------
-
-// BytesToUint64 converts bytes to uint64.
-func BytesToUint64(b []byte) uint64 {
-	return binary.BigEndian.Uint64(b)
-}
-
-// ------------------------------------------------------------------------
-
-// CurrentTimeToBytes converts the current timestamp to bytes.
-func CurrentTimeToBytes() []byte {
-	t := time.Now().Unix()
-	if t < 0 {
-		return nil
-	}
-
-	return Uint64ToBytes(uint64(t))
-}

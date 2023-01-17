@@ -8,18 +8,18 @@ type stgVisit struct {
 
 // ------------------------------------------------------------------------
 
-const defaultVisitTableName = "visited_requests"
+const defaultVisitTableName = "visits"
 
 // ------------------------------------------------------------------------
 
 var (
 	cmdVisit = map[string]string{
-		"create": `CREATE TABLE IF NOT EXISTS "<table>" ("id" INTEGER PRIMARY KEY NOT NULL)`,
+		"create": `CREATE TABLE IF NOT EXISTS "<table>" ("key" TEXT PRIMARY KEY NOT NULL, "visits" INT)`,
 		"drop":   `DROP TABLE IF EXISTS "<table>"`,
 		"trim":   `DELETE FROM "<table>"`,
-		"insert": `INSERT INTO "<table>" ("id") VALUES (?) ON CONFLICT("id") DO NOTHING`,
-		"select": `SELECT EXISTS(SELECT 1 FROM "<table>" WHERE "id" = ?)`,
-		"delete": `DELETE FROM "<table>" WHERE "id" = ?`,
+		"insert": `INSERT INTO "<table>" ("key", "visits") VALUES (?, 1) ON CONFLICT("key") DO UPDATE SET "visits" = "visits" + 1`,
+		"select": `SELECT COALESCE("visits", 0) AS "visits" FROM "<table>" WHERE "key" = ?`,
+		"delete": `DELETE FROM "<table>" WHERE "key" = ?`,
 		"count":  `SELECT COUNT(*) FROM "<table>"`,
 	}
 )
@@ -67,28 +67,29 @@ func (s *stgVisit) Len() (uint, error) {
 
 // ------------------------------------------------------------------------
 
-// SetVisited stores a request ID that is visited by the Collector.
-func (s *stgVisit) SetVisited(requestID uint64) error {
+// AddVisit stores a request ID that is visited by the Collector.
+func (s *stgVisit) AddVisit(key string) error {
 	s.s.lock.Lock()
 	defer s.s.lock.Unlock()
 
-	_, err := s.s.stmts["insert"].Exec(requestID)
+	_, err := s.s.stmts["insert"].Exec(key)
 
 	return err
 }
 
 // ------------------------------------------------------------------------
 
-// IsVisited returns true if the request was visited before.
-func (s *stgVisit) IsVisited(requestID uint64) (bool, error) {
-	var check int
+// PastVisits returns how many times the URL was visited before.
+func (s *stgVisit) PastVisits(key string) (uint, error) {
+	var visits int
 
 	s.s.lock.Lock()
-	defer s.s.lock.Unlock()
+	err := s.s.stmts["select"].QueryRow(key).Scan(&visits)
+	s.s.lock.Unlock()
 
-	if err := s.s.stmts["select"].QueryRow(requestID).Scan(&check); err != nil {
-		return false, err
+	if err != nil {
+		visits = 0
 	}
 
-	return check == 1, nil
+	return uint(visits), err
 }

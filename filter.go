@@ -1,6 +1,7 @@
 package colly
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -28,6 +29,17 @@ type FilterMethod bool
 // FilterScope points out which part of the URL will be matched.
 type FilterScope uint8
 
+// FilterOperator identifies the the logical operator for combined filter engines.
+type FilterOperator uint8
+
+// VisitStorage is a Storage to save and retreive visiting information.
+type VisitStorage interface {
+	AddVisit(key string) error           // AddVisit stores an URL that is visited.
+	PastVisits(key string) (uint, error) // PastVisits returns how many times the URL was visited before.
+	Remove(key string) error             // Remove removes an entry by URL.
+	Clear() error                        // Clear deletes all stored items.
+}
+
 // filterItem represent an including/excluding URL filter
 type filterItem struct {
 	scope  FilterScope
@@ -49,6 +61,18 @@ type lengthFilter struct {
 	limit uint
 }
 
+// visitedFilter represents a filter that checks that the URL was visited before
+type visitFilter struct {
+	maxVisits uint
+	stg       VisitStorage
+}
+
+// multiFilter combines multiple filter with AND or OR operator
+type multiFilter struct {
+	items []FilterEngine
+	op    FilterOperator
+}
+
 // ------------------------------------------------------------------------
 
 const (
@@ -57,8 +81,21 @@ const (
 )
 
 const (
+	FILTER_OPERATOR_AND FilterOperator = iota
+	FILTER_OPERATOR_OR
+)
+
+const (
 	DOMAIN_FILTER FilterScope = iota
 	URL_FILTER
+)
+
+// ------------------------------------------------------------------------
+
+var (
+	ErrFilterNoStorage    = errors.New("no storage was given")
+	ErrFilterNoEngine     = errors.New("no filter engine was given")
+	ErrFilterZeroMaxVisit = errors.New("maximum number of visits is zero, must be positive")
 )
 
 // ------------------------------------------------------------------------
@@ -240,6 +277,71 @@ func NewLengthFilterItem(maxLength uint) *lengthFilter {
 // Match reports whether the string str contains any match of the filter.
 func (f *lengthFilter) Match(str string) bool {
 	return len(str) <= int(f.limit)
+}
+
+// ------------------------------------------------------------------------
+
+// NewVisitedFilterItem returns a pointer to a newly created filter that check
+// whether or not the URL was visited. It must be used with REQUEST_ID_FILTER.
+func NewVisitedFilterItem(storage VisitStorage, maxVisits uint) (*visitFilter, error) {
+	if storage == nil {
+		return nil, ErrFilterNoStorage
+	}
+
+	if maxVisits == 0 {
+		return nil, ErrFilterZeroMaxVisit
+	}
+
+	return &visitFilter{
+		maxVisits: maxVisits,
+		stg:       storage,
+	}, nil
+}
+
+// Match reports whether the string str contains any match of the filter.
+func (f *visitFilter) Match(str string) bool {
+	visited, err := f.stg.PastVisits(str)
+
+	return err != nil || visited < f.maxVisits
+}
+
+// ------------------------------------------------------------------------
+
+// NewCombinedFilterItems returns a pointer to a newly created combined filter.
+func NewCombinedFilterItems(op FilterOperator, filters ...FilterEngine) (*multiFilter, error) {
+	if len(filters) == 0 {
+		return nil, ErrFilterNoEngine
+	}
+
+	return &multiFilter{
+		items: filters,
+		op:    op,
+	}, nil
+}
+
+// Match reports whether the string str contains match of any filter or all filters,
+// depending on the logical operator.
+func (f *multiFilter) Match(str string) bool {
+	switch f.op {
+	case FILTER_OPERATOR_AND:
+		for _, filter := range f.items {
+			if !filter.Match(str) {
+				return false
+			}
+		}
+
+		return true
+	case FILTER_OPERATOR_OR:
+		for _, filter := range f.items {
+			if filter.Match(str) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	return false
 }
 
 // ------------------------------------------------------------------------

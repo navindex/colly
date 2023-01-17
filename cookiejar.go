@@ -24,7 +24,8 @@ import (
 type CookieStorage interface {
 	Set(key string, entries io.Reader) error // Set sets the entries in binary format.
 	Get(key string) (io.Reader, error)       // Get retrieves the entries in binary format.
-	Remove(key string)                       // Remove removes the entries by key.
+	Remove(key string) error                 // Remove removes an entry by key.
+	Clear() error                            // Clear deletes all stored items.
 }
 
 // cookieJar implements the http.CookieJar interface from the net/http package.

@@ -10,7 +10,7 @@ import (
 // In-memory visit storage
 type stgVisit struct {
 	lock   *sync.RWMutex
-	visits map[uint64]bool
+	visits map[string]uint
 }
 
 // ------------------------------------------------------------------------
@@ -19,7 +19,7 @@ type stgVisit struct {
 func NewVisitStorage() *stgVisit {
 	return &stgVisit{
 		lock:   &sync.RWMutex{},
-		visits: map[uint64]bool{},
+		visits: map[string]uint{},
 	}
 }
 
@@ -50,7 +50,7 @@ func (s *stgVisit) Clear() error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	s.visits = map[uint64]bool{}
+	s.visits = map[string]uint{}
 
 	return nil
 }
@@ -71,30 +71,38 @@ func (s *stgVisit) Len() (uint, error) {
 
 // ------------------------------------------------------------------------
 
-// SetVisited receives and stores a request ID that is visited by the Collector.
-func (s *stgVisit) SetVisited(requestID uint64) error {
+// AddVisit receives and stores a request ID that is visited by the Collector.
+func (s *stgVisit) AddVisit(key string) error {
 	if s.visits == nil {
 		return storage.ErrStorageClosed
 	}
 
 	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	s.visits[requestID] = true
+	if visits, present := s.visits[key]; present {
+		s.visits[key] = visits + 1
+	} else {
+		s.visits[key] = uint(1)
+	}
+	s.lock.Unlock()
 
 	return nil
 }
 
 // ------------------------------------------------------------------------
 
-// IsVisited returns true if the request was visited before.
-func (s *stgVisit) IsVisited(requestID uint64) (bool, error) {
+// PastVisits returns true if the request was visited before.
+func (s *stgVisit) PastVisits(key string) (uint, error) {
 	if s.visits == nil {
-		return false, storage.ErrStorageClosed
+		return 0, storage.ErrStorageClosed
 	}
 
-	s.lock.RLock()
-	defer s.lock.RUnlock()
+	visits := uint(0)
 
-	return s.visits[requestID], nil
+	s.lock.RLock()
+	if v, present := s.visits[key]; !present {
+		visits = v
+	}
+	s.lock.RUnlock()
+
+	return visits, nil
 }

@@ -17,7 +17,7 @@ func TestNewVisitStorage(t *testing.T) {
 			name: "default",
 			want: &stgVisit{
 				lock:   &sync.RWMutex{},
-				visits: map[uint64]bool{},
+				visits: map[string]uint{},
 			},
 		},
 	}
@@ -35,7 +35,7 @@ func TestNewVisitStorage(t *testing.T) {
 func Test_stgVisit_Close(t *testing.T) {
 	type fields struct {
 		lock   *sync.RWMutex
-		visits map[uint64]bool
+		visits map[string]uint
 	}
 	tests := []struct {
 		name    string
@@ -47,7 +47,7 @@ func Test_stgVisit_Close(t *testing.T) {
 			name: "default",
 			fields: fields{
 				lock:   &sync.RWMutex{},
-				visits: map[uint64]bool{},
+				visits: map[string]uint{},
 			},
 			want: &stgVisit{
 				lock:   &sync.RWMutex{},
@@ -89,7 +89,7 @@ func Test_stgVisit_Close(t *testing.T) {
 func Test_stgVisit_Clear(t *testing.T) {
 	type fields struct {
 		lock   *sync.RWMutex
-		visits map[uint64]bool
+		visits map[string]uint
 	}
 	tests := []struct {
 		name    string
@@ -101,14 +101,14 @@ func Test_stgVisit_Clear(t *testing.T) {
 			name: "default",
 			fields: fields{
 				lock: &sync.RWMutex{},
-				visits: map[uint64]bool{
-					1:  true,
-					42: true,
+				visits: map[string]uint{
+					"abc": 2,
+					"xyz": 3,
 				},
 			},
 			want: &stgVisit{
 				lock:   &sync.RWMutex{},
-				visits: map[uint64]bool{},
+				visits: map[string]uint{},
 			},
 			wantErr: false,
 		},
@@ -146,7 +146,7 @@ func Test_stgVisit_Clear(t *testing.T) {
 func Test_stgVisit_Len(t *testing.T) {
 	type fields struct {
 		lock   *sync.RWMutex
-		visits map[uint64]bool
+		visits map[string]uint
 	}
 	tests := []struct {
 		name    string
@@ -158,9 +158,9 @@ func Test_stgVisit_Len(t *testing.T) {
 			name: "default",
 			fields: fields{
 				lock: &sync.RWMutex{},
-				visits: map[uint64]bool{
-					1:  true,
-					42: true,
+				visits: map[string]uint{
+					"abc": 2,
+					"xyz": 3,
 				},
 			},
 			want:    2,
@@ -195,13 +195,13 @@ func Test_stgVisit_Len(t *testing.T) {
 
 // ------------------------------------------------------------------------
 
-func Test_stgVisit_SetVisited(t *testing.T) {
+func Test_stgVisit_AddVisit(t *testing.T) {
 	type fields struct {
 		lock   *sync.RWMutex
-		visits map[uint64]bool
+		visits map[string]uint
 	}
 	type args struct {
-		requestID uint64
+		key string
 	}
 	tests := []struct {
 		name    string
@@ -211,23 +211,44 @@ func Test_stgVisit_SetVisited(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "default",
+			name: "new",
 			fields: fields{
 				lock: &sync.RWMutex{},
-				visits: map[uint64]bool{
-					1:  true,
-					99: true,
+				visits: map[string]uint{
+					"abc": 2,
+					"pqr": 6,
 				},
 			},
 			args: args{
-				requestID: 42,
+				key: "xyz",
 			},
 			want: &stgVisit{
 				lock: &sync.RWMutex{},
-				visits: map[uint64]bool{
-					1:  true,
-					42: true,
-					99: true,
+				visits: map[string]uint{
+					"abc": 2,
+					"xyz": 1,
+					"pqr": 6,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "existing",
+			fields: fields{
+				lock: &sync.RWMutex{},
+				visits: map[string]uint{
+					"abc": 2,
+					"xyz": 6,
+				},
+			},
+			args: args{
+				key: "abc",
+			},
+			want: &stgVisit{
+				lock: &sync.RWMutex{},
+				visits: map[string]uint{
+					"abc": 3,
+					"xyz": 6,
 				},
 			},
 			wantErr: false,
@@ -239,7 +260,7 @@ func Test_stgVisit_SetVisited(t *testing.T) {
 				visits: nil,
 			},
 			args: args{
-				requestID: 42,
+				key: "abc",
 			},
 			want: &stgVisit{
 				lock:   &sync.RWMutex{},
@@ -254,11 +275,11 @@ func Test_stgVisit_SetVisited(t *testing.T) {
 				lock:   tt.fields.lock,
 				visits: tt.fields.visits,
 			}
-			if err := s.SetVisited(tt.args.requestID); (err != nil) != tt.wantErr {
-				t.Errorf("stgVisit.SetVisited() error = %v, wantErr %v", err, tt.wantErr)
+			if err := s.AddVisit(tt.args.key); (err != nil) != tt.wantErr {
+				t.Errorf("stgVisit.AddVisit() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if !reflect.DeepEqual(s, tt.want) {
-				t.Errorf("stgVisit.SetVisited() storage = %v, want %v", s, tt.want)
+				t.Errorf("stgVisit.AddVisit() storage = %v, want %v", s, tt.want)
 			}
 		})
 	}
@@ -266,49 +287,49 @@ func Test_stgVisit_SetVisited(t *testing.T) {
 
 // ------------------------------------------------------------------------
 
-func Test_stgVisit_IsVisited(t *testing.T) {
+func Test_stgVisit_PastVisits(t *testing.T) {
 	type fields struct {
 		lock   *sync.RWMutex
-		visits map[uint64]bool
+		visits map[string]uint
 	}
 	type args struct {
-		requestID uint64
+		key string
 	}
 	tests := []struct {
 		name    string
 		fields  fields
 		args    args
-		want    bool
+		want    uint
 		wantErr bool
 	}{
 		{
 			name: "visited",
 			fields: fields{
 				lock: &sync.RWMutex{},
-				visits: map[uint64]bool{
-					1:  true,
-					42: true,
+				visits: map[string]uint{
+					"abc": 3,
+					"xyz": 6,
 				},
 			},
 			args: args{
-				requestID: 42,
+				key: "pqr",
 			},
-			want:    true,
+			want:    3,
 			wantErr: false,
 		},
 		{
 			name: "not visited",
 			fields: fields{
 				lock: &sync.RWMutex{},
-				visits: map[uint64]bool{
-					1:  true,
-					42: true,
+				visits: map[string]uint{
+					"abc": 3,
+					"xyz": 6,
 				},
 			},
 			args: args{
-				requestID: 99,
+				key: "pqr",
 			},
-			want:    false,
+			want:    0,
 			wantErr: false,
 		},
 		{
@@ -318,9 +339,9 @@ func Test_stgVisit_IsVisited(t *testing.T) {
 				visits: nil,
 			},
 			args: args{
-				requestID: 42,
+				key: "pqr",
 			},
-			want:    false,
+			want:    0,
 			wantErr: true,
 		},
 	}
@@ -330,13 +351,13 @@ func Test_stgVisit_IsVisited(t *testing.T) {
 				lock:   tt.fields.lock,
 				visits: tt.fields.visits,
 			}
-			got, err := s.IsVisited(tt.args.requestID)
+			got, err := s.PastVisits(tt.args.key)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("stgVisit.IsVisited() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("stgVisit.PastVisits() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if got != tt.want {
-				t.Errorf("stgVisit.IsVisited() = %v, want %v", got, tt.want)
+				t.Errorf("stgVisit.PastVisits() = %v, want %v", got, tt.want)
 			}
 		})
 	}
