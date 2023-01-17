@@ -3,6 +3,9 @@ package filesys
 import (
 	"os"
 	"path/filepath"
+	"strings"
+
+	"github.com/kennygrant/sanitize"
 )
 
 // ------------------------------------------------------------------------
@@ -20,4 +23,19 @@ func FileCount(path string) (count uint, err error) {
 	}
 
 	return count, err
+}
+
+// ------------------------------------------------------------------------
+
+// SanitizeFileName replaces dangerous characters in a string
+// so the return value can be used as a safe file name.
+func SanitizeFileName(fileName string) string {
+	ext := sanitize.BaseName(filepath.Ext(fileName))
+	name := sanitize.BaseName(fileName[:len(fileName)-len(ext)])
+
+	if ext == "" {
+		ext = ".unknown"
+	}
+
+	return strings.Replace(name+ext, "-", "_", -1)
 }

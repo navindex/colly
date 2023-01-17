@@ -2,7 +2,7 @@ package colly
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"mime"
 	"net/http"
 	"net/mail"
@@ -18,87 +18,74 @@ import (
 
 // Response is an encapsulated HTTP response, created by a Collector.
 type Response struct {
-	Resp          *http.Response `json:"response" bson:"response,omitempty"`       // Response is the embedded HTTP response.
 	Request       *Request       `json:"request" bson:"request,omitempty"`         // Request is the embedded Request.
-	ExtStatusCode int            `json:"status_code" bson:"status_code,omitempty"` // StatusCode is the extended response status code.
-	Body          []byte         `json:"body" bson:"body,omitempty"`               // Body is the content of the Response
+	Resp          *http.Response `json:"response" bson:"response,omitempty"`       // Response is the embedded HTTP response.
+	ExtStatusCode uint           `json:"status_code" bson:"status_code,omitempty"` // ExtStatusCode is the extended response status code.
+	Body          []byte         `json:"body" bson:"body,omitempty"`               // Body is the content of the response.
 	Created       time.Time      `json:"created" bson:"created,omitempty"`         // Received is the date and time when the response was created.
 	Expiry        time.Time      `json:"expiry" bson:"expiry,omitempty"`           // Expiry is the response expiry date and time.
 }
 
 // ------------------------------------------------------------------------
 
-// FileName returns the sanitized file name parsed from "Content-Disposition"
-// header or from URL.
-func (r *Response) FileName() string {
-	_, params, err := mime.ParseMediaType(r.Resp.Header.Get("Content-Disposition"))
-
-	fName, ok := params["filename"]
-	if err != nil || !ok {
-		url := r.Request.Req.URL
-		fName = strings.TrimPrefix(url.Path, "/")
-
-		if url.RawQuery != "" {
-			fName = fName + "_" + url.RawQuery
-		}
+// NewResponse returns a pointer to a newly created response.
+func NewResponse(req *Request, resp *http.Response, detectCharset bool) (*Response, error) {
+	r := &Response{
+		Request: req,
+		Resp:    resp,
 	}
 
-	return SanitizeFileName(fName)
+	if err := r.setBody(detectCharset); err != nil {
+		return nil, err
+	}
+
+	r.setExtStatusCode()
+	r.setCreated()
+	r.setExpiry()
+
+	return r, nil
 }
 
 // ------------------------------------------------------------------------
 
-func (r *Response) fixCharset(detectCharset bool, defaultEncoding string) error {
+func (r *Response) setBody(detectCharset bool) error {
+	data, err := io.ReadAll(r.Resp.Body)
+	if err == nil {
+		return err
+	}
+
+	r.Body = data
 	if len(r.Body) == 0 {
 		return nil
 	}
 
-	// Use default encoding if exists
-	if defaultEncoding != "" {
-		body, err := encodeBytes(r.Body, "text/plain; charset="+defaultEncoding)
-		if err != nil {
-			return err
-		}
-
-		r.Body = body
-
+	var contentType string
+	// Exit if content is not textual data
+	if contentType = strings.ToLower(r.Resp.Header.Get("Content-Type")); noTextualData(contentType) {
 		return nil
 	}
 
-	contentType := strings.ToLower(r.Resp.Header.Get("Content-Type"))
+	// Use default encoding if exists
+	if enc := r.Request.CharEncoding; enc != "" {
+		return r.encodeBody("text/plain; charset=" + enc)
+	}
 
-	// Exit if content is not textual data
-	if noTextualData(contentType) {
+	// Exit if no charset with no detect or charset is utf8
+	hasCharset := strings.Contains(contentType, "charset")
+	if (!hasCharset && !detectCharset) ||
+		(hasCharset && (strings.Contains(contentType, "utf-8") || strings.Contains(contentType, "utf8"))) {
 		return nil
 	}
 
 	// Detect character set if missing
-	if !strings.Contains(contentType, "charset") {
-		if !detectCharset {
-			return nil
-		}
-
-		r, err := chardet.NewTextDetector().DetectBest(r.Body)
-		if err != nil {
-			return err
-		}
-
-		contentType = "text/plain; charset=" + r.Charset
-	}
-
-	// Nothing more to do if the character set is UTF-8
-	if strings.Contains(contentType, "utf-8") || strings.Contains(contentType, "utf8") {
-		return nil
-	}
-
-	// Convert to the newly set character set
-	body, err := encodeBytes(r.Body, contentType)
+	res, err := chardet.NewTextDetector().DetectBest(r.Body)
 	if err != nil {
 		return err
 	}
-	r.Body = body
+	contentType = "text/plain; charset=" + res.Charset
 
-	return nil
+	// Convert to the newly set character set
+	return r.encodeBody(contentType)
 }
 
 // ------------------------------------------------------------------------
@@ -148,13 +135,38 @@ func (r *Response) setExpiry() {
 
 // ------------------------------------------------------------------------
 
-func encodeBytes(b []byte, contentType string) ([]byte, error) {
-	r, err := charset.NewReader(bytes.NewReader(b), contentType)
-	if err != nil {
-		return nil, err
+// FIXME
+func (r *Response) setExtStatusCode() {
+	r.ExtStatusCode = uint(r.Resp.StatusCode)
+}
+
+// ------------------------------------------------------------------------
+
+// CacheKey returns a cache key parsed from "Content-Disposition" header or from URL.
+func (r *Response) cacheKey() string {
+	_, params, err := mime.ParseMediaType(r.Resp.Header.Get("Content-Disposition"))
+
+	key, ok := params["filename"]
+	if err != nil || !ok {
+		url := r.Request.Req.URL
+		key = strings.TrimPrefix(url.Path, "/")
+
+		if url.RawQuery != "" {
+			key = key + "_" + url.RawQuery
+		}
 	}
 
-	return ioutil.ReadAll(r)
+	return key
+}
+
+// ------------------------------------------------------------------------
+
+func (r *Response) encodeBody(contentType string) error {
+	rdr, err := charset.NewReader(bytes.NewReader(r.Body), contentType)
+	if err == nil {
+		r.Body, err = io.ReadAll(rdr)
+	}
+	return err
 }
 
 // ------------------------------------------------------------------------
@@ -169,25 +181,24 @@ func noTextualData(contentType string) bool {
 // ------------------------------------------------------------------------
 
 func parseHeaderDate(hdr string) *time.Time {
-	s := strings.TrimSpace(hdr)
-
-	if s == "" {
+	if hdr == "" {
 		return nil
 	}
 
-	if t, err := mail.ParseDate(s); err == nil {
-		return &t
+	var (
+		t   time.Time
+		err error
+	)
+
+	if t, err = mail.ParseDate(hdr); err != nil {
+		if t, err = time.Parse(time.RFC850, hdr); err != nil {
+			if t, err = time.Parse(time.ANSIC, hdr); err != nil {
+				return nil
+			}
+		}
 	}
 
-	if t, err := time.Parse(time.RFC850, s); err == nil {
-		return &t
-	}
-
-	if t, err := time.Parse(time.ANSIC, s); err == nil {
-		return &t
-	}
-
-	return nil
+	return &t
 }
 
 // ------------------------------------------------------------------------

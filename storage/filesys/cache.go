@@ -129,6 +129,7 @@ func (s *stgCache) Put(key string, item io.Reader) error {
 		return nil
 	}
 
+	key = SanitizeFileName(key)
 	dir := filepath.Join(s.path, key[:2])
 
 	s.lock.RLock()
@@ -168,6 +169,7 @@ func (s *stgCache) Fetch(key string) (io.Reader, error) {
 		return nil, storage.ErrInvalidKey
 	}
 
+	key = SanitizeFileName(key)
 	path := filepath.Join(s.path, key[:2], key)
 
 	s.lock.RLock()

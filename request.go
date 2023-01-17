@@ -21,6 +21,11 @@ type Request struct {
 	Parser Parser           `json:"proxy" bson:"proxy,omitempty"`               // Parser is the URL parser service.
 	Tracer Tracer           `json:"tracer" bson:"tracer,omitempty"`             // Tracer is a request tracing service.
 
+	// CharEncode is the character encoding of the response body.
+	// Leave it blank to allow automatic character encoding of the response body.
+	// It is empty by default and it can be set in OnRequest callback.
+	CharEncoding string `json:"char_encoding" bson:"char_encoding,omitempty"`
+
 	collector *Collector
 	abort     bool
 	baseURL   *url.URL
