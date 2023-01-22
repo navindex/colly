@@ -15,6 +15,7 @@
 package colly
 
 import (
+	"compress/gzip"
 	"crypto/sha1"
 	"encoding/gob"
 	"encoding/hex"
@@ -29,15 +30,16 @@ import (
 	"sync"
 	"time"
 
-	"compress/gzip"
-
 	"github.com/gobwas/glob"
 )
+
+// ------------------------------------------------------------------------
 
 type httpBackend struct {
 	LimitRules []*LimitRule
 	Client     *http.Client
 	lock       *sync.RWMutex
+	cache      Cache
 }
 
 type checkHeadersFunc func(req *http.Request, statusCode int, header http.Header) bool
@@ -46,8 +48,8 @@ type checkHeadersFunc func(req *http.Request, statusCode int, header http.Header
 // Both DomainRegexp and DomainGlob can be used to specify
 // the included domains patterns, but at least one is required.
 // There can be two kind of limitations:
-//  - Parallelism: Set limit for the number of concurrent requests to matching domains
-//  - Delay: Wait specified amount of time between requests (parallelism is 1 in this case)
+//   - Parallelism: Set limit for the number of concurrent requests to matching domains
+//   - Delay: Wait specified amount of time between requests (parallelism is 1 in this case)
 type LimitRule struct {
 	// DomainRegexp is a regular expression to match against domains
 	DomainRegexp string
@@ -64,6 +66,8 @@ type LimitRule struct {
 	compiledGlob   glob.Glob
 }
 
+// ------------------------------------------------------------------------
+
 // Init initializes the private members of LimitRule
 func (r *LimitRule) Init() error {
 	waitChanSize := 1
@@ -71,7 +75,9 @@ func (r *LimitRule) Init() error {
 		waitChanSize = r.Parallelism
 	}
 	r.waitChan = make(chan bool, waitChanSize)
+
 	hasPattern := false
+
 	if r.DomainRegexp != "" {
 		c, err := regexp.Compile(r.DomainRegexp)
 		if err != nil {
@@ -80,6 +86,7 @@ func (r *LimitRule) Init() error {
 		r.compiledRegexp = c
 		hasPattern = true
 	}
+
 	if r.DomainGlob != "" {
 		c, err := glob.Compile(r.DomainGlob)
 		if err != nil {
@@ -88,11 +95,15 @@ func (r *LimitRule) Init() error {
 		r.compiledGlob = c
 		hasPattern = true
 	}
+
 	if !hasPattern {
 		return ErrNoPattern
 	}
+
 	return nil
 }
+
+// ------------------------------------------------------------------------
 
 func (h *httpBackend) Init(jar http.CookieJar) {
 	rand.Seed(time.Now().UnixNano())
@@ -103,6 +114,8 @@ func (h *httpBackend) Init(jar http.CookieJar) {
 	h.lock = &sync.RWMutex{}
 }
 
+// ------------------------------------------------------------------------
+
 // Match checks that the domain parameter triggers the rule
 func (r *LimitRule) Match(domain string) bool {
 	match := false
@@ -112,31 +125,41 @@ func (r *LimitRule) Match(domain string) bool {
 	if r.compiledGlob != nil && r.compiledGlob.Match(domain) {
 		match = true
 	}
+
 	return match
 }
+
+// ------------------------------------------------------------------------
 
 func (h *httpBackend) GetMatchingRule(domain string) *LimitRule {
 	if h.LimitRules == nil {
 		return nil
 	}
+
 	h.lock.RLock()
 	defer h.lock.RUnlock()
+
 	for _, r := range h.LimitRules {
 		if r.Match(domain) {
 			return r
 		}
 	}
+
 	return nil
 }
 
-func (h *httpBackend) Cache(request *http.Request, bodySize int, checkHeadersFunc checkHeadersFunc, cacheDir string) (*Response, error) {
-	if cacheDir == "" || request.Method != "GET" || request.Header.Get("Cache-Control") == "no-cache" {
+// ------------------------------------------------------------------------
+
+func (h *httpBackend) Cache(request *http.Request, bodySize int, checkHeadersFunc checkHeadersFunc) (*Response, error) {
+	if h.cache == nil || request.Method != "GET" || request.Header.Get("Cache-Control") == "no-cache" {
 		return h.Do(request, bodySize, checkHeadersFunc)
 	}
+
 	sum := sha1.Sum([]byte(request.URL.String()))
 	hash := hex.EncodeToString(sum[:])
 	dir := path.Join(cacheDir, hash[:2])
 	filename := path.Join(dir, hash)
+
 	if file, err := os.Open(filename); err == nil {
 		resp := new(Response)
 		err := gob.NewDecoder(file).Decode(resp)
@@ -146,26 +169,32 @@ func (h *httpBackend) Cache(request *http.Request, bodySize int, checkHeadersFun
 			return resp, err
 		}
 	}
+
 	resp, err := h.Do(request, bodySize, checkHeadersFunc)
 	if err != nil || resp.StatusCode >= 500 {
 		return resp, err
 	}
+
 	if _, err := os.Stat(dir); err != nil {
 		if err := os.MkdirAll(dir, 0750); err != nil {
 			return resp, err
 		}
 	}
+
 	file, err := os.Create(filename + "~")
 	if err != nil {
 		return resp, err
 	}
+	defer file.Close()
+
 	if err := gob.NewEncoder(file).Encode(resp); err != nil {
-		file.Close()
 		return resp, err
 	}
-	file.Close()
+
 	return resp, os.Rename(filename+"~", filename)
 }
+
+// ------------------------------------------------------------------------
 
 func (h *httpBackend) Do(request *http.Request, bodySize int, checkHeadersFunc checkHeadersFunc) (*Response, error) {
 	r := h.GetMatchingRule(request.URL.Host)
@@ -186,9 +215,11 @@ func (h *httpBackend) Do(request *http.Request, bodySize int, checkHeadersFunc c
 		return nil, err
 	}
 	defer res.Body.Close()
+
 	if res.Request != nil {
 		*request = *res.Request
 	}
+
 	if !checkHeadersFunc(request, res.StatusCode, res.Header) {
 		// closing res.Body (see defer above) without reading it aborts
 		// the download
@@ -207,16 +238,20 @@ func (h *httpBackend) Do(request *http.Request, bodySize int, checkHeadersFunc c
 		}
 		defer bodyReader.(*gzip.Reader).Close()
 	}
+
 	body, err := ioutil.ReadAll(bodyReader)
 	if err != nil {
 		return nil, err
 	}
+
 	return &Response{
 		StatusCode: res.StatusCode,
 		Body:       body,
 		Headers:    &res.Header,
 	}, nil
 }
+
+// ------------------------------------------------------------------------
 
 func (h *httpBackend) Limit(rule *LimitRule) error {
 	h.lock.Lock()
@@ -225,8 +260,11 @@ func (h *httpBackend) Limit(rule *LimitRule) error {
 	}
 	h.LimitRules = append(h.LimitRules, rule)
 	h.lock.Unlock()
+
 	return rule.Init()
 }
+
+// ------------------------------------------------------------------------
 
 func (h *httpBackend) Limits(rules []*LimitRule) error {
 	for _, r := range rules {
@@ -234,5 +272,6 @@ func (h *httpBackend) Limits(rules []*LimitRule) error {
 			return err
 		}
 	}
+
 	return nil
 }

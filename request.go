@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/gob"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 )
 
 // ------------------------------------------------------------------------
@@ -17,8 +19,7 @@ type Request struct {
 	Depth  uint16           `json:"depth" bson:"depth,omitempty"`               // Depth is the number of the parents of the request.
 	Req    *http.Request    `json:"http_request" bson:"http_request,omitempty"` // Req is the embedded HTTP request.
 	Ctx    *context.Context `json:"context" bson:"context,omitempty"`           // Ctx carries values between request and response.
-	Proxy  Proxy            `json:"proxy" bson:"proxy,omitempty"`               // Proxy is the proxy service that handles the request.
-	Parser Parser           `json:"proxy" bson:"proxy,omitempty"`               // Parser is the URL parser service.
+	Parser Parser           `json:"parser" bson:"parser,omitempty"`             // Parser is the URL parser service.
 	Tracer Tracer           `json:"tracer" bson:"tracer,omitempty"`             // Tracer is a request tracing service.
 
 	// CharEncode is the character encoding of the response body.
@@ -36,24 +37,29 @@ type Request struct {
 // ------------------------------------------------------------------------
 
 // NewRequest returns a pointer to a newly created request.
-func NewRequest(method string, rawURL string, parser Parser) (*Request, error) {
-	req, err := http.NewRequest(method, rawURL, nil)
+func NewRequest(method string, rawURL string, parser Parser, tracer Tracer, body io.ReadCloser) (*Request, error) {
+	req, err := http.NewRequest(method, rawURL, body)
 	if err != nil {
 		return nil, err
 	}
 
-	if parser != nil {
-		if URL, err := parser.Parse(rawURL); err == nil {
-			req.URL = URL
-		}
+	if parser == nil {
+		parser = NewWHATWGParser()
 	}
 
+	URL, err := parser.Parse(rawURL)
+	if err != nil {
+		return nil, err
+	}
+
+	req.URL = URL
 	ctx := context.Background()
 
 	return &Request{
 		Req:    req,
 		Ctx:    &ctx,
 		Parser: parser,
+		Tracer: tracer,
 	}, nil
 }
 
@@ -72,6 +78,43 @@ func NewRequestFromBytes(b []byte) (*Request, error) {
 	}
 
 	return r, err
+}
+
+// ------------------------------------------------------------------------
+
+// Clone creates a new request with the context of the original request.
+func (r *Request) Clone(method string, rawURL string, body io.ReadCloser) (*Request, error) {
+	if r.Req == nil {
+		return nil, ErrNoHTTPRequest
+	}
+
+	if r.collector == nil {
+		return nil, ErrNoCollector
+	}
+
+	req, err := http.NewRequestWithContext(r.Req.Context(), method, rawURL, body)
+	if err != nil {
+		return nil, err
+	}
+
+	URL, err := r.Parser.Parse(rawURL)
+	if err != nil {
+		return nil, err
+	}
+
+	req.URL = URL
+	if h := r.Req.Header.Get("Host"); h != "" {
+		req.Header.Set("Host", h)
+	}
+
+	return &Request{
+		ID:        atomic.AddUint32(&r.collector.requestCount, 1),
+		Req:       req,
+		Ctx:       r.Ctx,
+		Parser:    r.Parser,
+		Tracer:    r.Tracer,
+		collector: r.collector,
+	}, nil
 }
 
 // ------------------------------------------------------------------------
