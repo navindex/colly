@@ -30,12 +30,14 @@ type MaxVisitReachedError struct {
 var (
 	ErrForbiddenDomain     = errors.New("forbidden domain")                         // ErrForbiddenDomain is thrown when visiting a domain that is not allowed.
 	ErrMissingURL          = errors.New("missing URL")                              // ErrMissingURL is thrown when the URL is missing.
+	ErrNoHTTPRequest       = errors.New("HTTP Request reference is nil")            // ErrNoHTTPRequest is thrown when the HTTP request pointer is set to nil.
+	ErrNoCollector         = errors.New("Collector reference is nil")               // ErrNoCollector is thrown when the Collector pointer is set to nil.
 	ErrMaxDepth            = errors.New("max depth limit reached")                  // ErrMaxDepth is thrown for exceeding max depth.
 	ErrForbiddenURL        = errors.New("forbidden URL")                            // ErrForbiddenURL is thrown for visiting a URL that is not allowed.
 	ErrNoMatchingFilter    = errors.New("no filter match")                          // ErrNoMatchingFilter is thrown when visiting a URL that is not allowed by filters.
 	ErrRobotsTxtBlocked    = errors.New("URL blocked by robots.txt")                // ErrRobotsTxtBlocked is thrown for robots.txt errors.
 	ErrNoCookieJar         = errors.New("cookie jar not available")                 // ErrNoCookieJar is thrown for missing cookie jar.
-	ErrNoFilterDefined     = errors.New("no filter defined in domain rule")         // ErrNoPattern is thrown for DomainRule without valid filters.
+	ErrNoFilterDefined     = errors.New("no filter defined")                        // ErrNoFilterDefined is thrown when no valid filter was provided.
 	ErrEmptyProxyURL       = errors.New("proxy URL list is empty")                  // ErrEmptyProxyURL is thrown for empty Proxy URL list.
 	ErrAbortedAfterHeaders = errors.New("aborted after receiving response headers") // ErrAbortedAfterHeaders is returned when OnResponseHeaders aborts the transfer.
 	ErrQueueFull           = errors.New("maximum queue size reached")               // ErrQueueFull is returned when the queue is full.

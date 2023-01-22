@@ -21,7 +21,7 @@ type (
 	HeaderCallback      func(args ...any) *http.Header       // HeaderCallback is a callback function to return a user agent sting.
 )
 
-// CollectorConfig is a collection of filters and instructions for requests in the collection.
+// CollectorConfig is a list of collection settings.
 type CollectorConfig struct {
 	// Filter represents a number of URL filter criteria.
 	// Each filter can be an including or excluding filter. Blank filters will be ignored.
@@ -32,14 +32,9 @@ type CollectorConfig struct {
 	// MaxBodySize is the limit of the retrieved response body in bytes. 0 means unlimited.
 	// The default value for MaxBodySize is 10MB (10 * 1024 * 1024 bytes).
 	MaxBodySize uint `json:"max_body_size" bson:"max_body_size,omitempty"`
-	// MaxRevisit, sets how many times the same URL can be visited.
-	MaxRevisit uint `json:"max_revisit" bson:"max_revisit,omitempty"`
 	// IgnoreRobotsTxt, if true, allows the Collector to ignore any restrictions set by the target
 	// host's robots.txt file.  See http://www.robotstxt.org/ for more information.
 	IgnoreRobotsTxt bool `json:"ignore_robots_txt" bson:"ignore_robots_txt,omitempty"`
-	// Async turns on asynchronous network communication. Use Collector.Wait() to
-	// be sure all requests have been finished.
-	Async bool `json:"async" bson:"async,omitempty"`
 	// DetectCharset enables character encoding detection for non-UTF8 response bodies
 	// without explicit charset declaration. This feature uses https://github.com/saintfish/chardet.
 	DetectCharset bool `json:"detect_charset" bson:"detect_charset,omitempty"`
@@ -48,13 +43,25 @@ type CollectorConfig struct {
 	// 		return http.ErrUseLastResponse
 	// 	}
 	FollowRedirects bool `json:"follow_redirects" bson:"follow_redirects,omitempty"`
+	// CheckHead performs a HEAD request before every GET to pre-validate the response.
+	CheckHead bool `json:"check_head" bson:"check_head,omitempty"`
+	// Async turns on asynchronous network communication. Use Collector.Wait() to
+	// be sure all requests have been finished.
+	Async bool `json:"async" bson:"async,omitempty"`
+	// Delay is the duration to wait before creating a new request.
+	// This value is used only if none of filtered configurations is a match.
+	Delay time.Duration `json:"delay" bson:"delay,omitempty"`
+	// RandomDelay is a randomized duration to be added to Delay before creating a new request.
+	// This value is used only if none of filtered configurations is a match.
+	RandomDelay time.Duration `json:"random_delay" bson:"random_delay,omitempty"`
+	// MaxThreads is the default number of the maximum allowed concurrent requests of the matching domains.
+	// This value is used only if none of filtered configurations is a match.
+	MaxThreads uint `json:"max_threads" bson:"max_threads,omitempty"`
 	// ParseByStatus is a callback function to enable or disable parsing HTTP responses by status codes.
 	// If blank, the collector will parse only successful HTTP responses.
 	ParseStatusCallback `json:"parse_status_callback" bson:"parse_status_callback,omitempty"`
 	// UserAgent is a allback function to create a user agent string.
 	UserAgentCallback `json:"user_agent_callback" bson:"user_agent_callback,omitempty"`
-	// CheckHead performs a HEAD request before every GET to pre-validate the response.
-	CheckHead bool `json:"check_head" bson:"check_head,omitempty"`
 	// HeaderCallback is a callback to create common headers for each request.
 	HeaderCallback `json:"header_callback" bson:"header_callback,omitempty"`
 	// Cache attaches a cache service to keep a local copy of the responses.
@@ -63,16 +70,19 @@ type CollectorConfig struct {
 	CookieJar http.CookieJar `json:"cookie_jar" bson:"cookie_jar,omitempty"`
 	// Parser represents an URL parser service.
 	Parser `json:"parser" bson:"parser,omitempty"`
+	// Proxy is a represents a web proxy service.
+	Proxy `json:"proxy" bson:"proxy,omitempty"`
 	// Tracer attaches a tracing service to enable capturing and reporting request performance for crawler tuning.
 	Tracer `json:"tracer" bson:"tracer,omitempty"`
 	// Logger logs the collector events.
 	Logger `json:"logger" bson:"logger,omitempty"`
-	// GroupRules are additional instructions by matching filter criteria.
-	DomainRules []DomainRule `json:"domain_rules" bson:"domain_rules,omitempty"`
+	// FilteredConfigs is a list of configuration settings that based on URL filter criteria.
+	FilteredConfigs []*FilteredConfig `json:"filtered_configs" bson:"filtered_configs,omitempty"`
 }
 
-// DomainRules represent request processing instructions by matching domain filter criteria.
-type DomainRule struct {
+// FilteredConfig represents configuration settings that based on URL filter criteria.
+// These settings overwrite similar settings in CollectorConfig if the URL mathces the filter.
+type FilteredConfig struct {
 	// Filter represents a number of URL filter criteria.
 	// Each filter can be an including or excluding filter. Blank filters will be ignored.
 	// Excluding filters will be evaluated before including filters.
@@ -82,7 +92,7 @@ type DomainRule struct {
 	// RandomDelay is the extra randomized duration to wait added to Delay before creating a new request.
 	RandomDelay time.Duration `json:"random_delay" bson:"random_delay,omitempty"`
 	// MaxThreads is the number of the maximum allowed concurrent requests of the matching domains.
-	MaxThreads int `json:"max_threads" bson:"max_threads,omitempty"`
+	MaxThreads uint `json:"max_threads" bson:"max_threads,omitempty"`
 }
 
 // ------------------------------------------------------------------------
@@ -139,7 +149,7 @@ var EnvMap = map[string]EnvConfigSetter{
 		if n, err := StrToUInt(val); err != nil {
 			c.logError(LOG_WARN_LEVEL, fmt.Errorf("MAX_REVISIT error: %v", err))
 		} else {
-			c.MaxRevisit = n
+			c.SetMaxRevisits(n)
 		}
 	},
 	"PARSE_HTTP_ERROR_RESPONSE": func(c *CollectorConfig, val string) {
@@ -183,8 +193,8 @@ func NewConfig() *CollectorConfig {
 	return &CollectorConfig{
 		MaxDepth:            0,
 		MaxBodySize:         10 * 1024 * 1024,
-		MaxRevisit:          0,
 		IgnoreRobotsTxt:     true,
+		MaxThreads:          1,
 		UserAgentCallback:   func(_ ...any) string { return "colly v3" },
 		Cache:               cache,
 		ParseStatusCallback: parseSuccessResponse,
@@ -192,6 +202,22 @@ func NewConfig() *CollectorConfig {
 		CookieJar:           jar,
 		Parser:              NewWHATWGParser(),
 	}
+}
+
+// ------------------------------------------------------------------------
+
+// NewFilteredConfig returns a pointer to a newly created configuration settings that matches the filter.
+func NewFilteredConfig(filter *Filter, delay time.Duration, randomDelay time.Duration, maxThreads uint) (*FilteredConfig, error) {
+	if filter == nil {
+		return nil, ErrNoFilterDefined
+	}
+
+	return &FilteredConfig{
+		Filter:      filter,
+		Delay:       delay,
+		RandomDelay: randomDelay,
+		MaxThreads:  maxThreads,
+	}, nil
 }
 
 // ------------------------------------------------------------------------
@@ -225,10 +251,10 @@ func (c *CollectorConfig) SetAllowedDomains(domains []string) error {
 	if c.Filter == nil {
 		c.Filter = NewFilter()
 	} else {
-		c.Filter.Remove(FILTER_METHOD_INCLUDE, DOMAIN_FILTER)
+		c.Filter.RemoveAll(FILTER_METHOD_INCLUDE, DOMAIN_FILTER)
 	}
 
-	c.Filter.Append(FILTER_METHOD_INCLUDE, DOMAIN_FILTER, f)
+	c.Filter.Add(FILTER_METHOD_INCLUDE, DOMAIN_FILTER, f)
 
 	return nil
 }
@@ -243,10 +269,10 @@ func (c *CollectorConfig) SetDisallowedDomains(domains []string) error {
 	if c.Filter == nil {
 		c.Filter = NewFilter()
 	} else {
-		c.Filter.Remove(FILTER_METHOD_EXCLUDE, DOMAIN_FILTER)
+		c.Filter.RemoveAll(FILTER_METHOD_EXCLUDE, DOMAIN_FILTER)
 	}
 
-	c.Filter.Append(FILTER_METHOD_EXCLUDE, DOMAIN_FILTER, f)
+	c.Filter.Add(FILTER_METHOD_EXCLUDE, DOMAIN_FILTER, f)
 
 	return nil
 }
@@ -337,6 +363,31 @@ func (c *CollectorConfig) SetFileCache(path string, expHandler CacheExpiryHandle
 	c.Cache = cache
 
 	return nil
+}
+
+// SetMaxRevisits sets how many times the same URL can be visited.
+// The storage attribute, if not nil, will be used to store the number of visits.
+// If no storage is given, the visits will be used in the memory.
+func (c *CollectorConfig) SetMaxRevisits(maxRevisits uint, storage ...VisitStorage) error {
+	const label = "revisit"
+	var stg VisitStorage
+
+	if len(storage) > 0 {
+		stg = storage[0]
+	} else {
+		stg = mem.NewVisitStorage()
+	}
+
+	f, err := NewVisitedFilterItem(stg, maxRevisits)
+	if err != nil {
+		return err
+	}
+
+	if c.Filter == nil {
+		c.Filter = NewFilter()
+	}
+
+	return c.Filter.Add(FILTER_METHOD_INCLUDE, URL_FILTER, f, label)
 }
 
 // ------------------------------------------------------------------------
