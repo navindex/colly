@@ -6,14 +6,14 @@ import (
 
 // ------------------------------------------------------------------------
 
-type visitStorage struct {
+type stgVisit struct {
 	s *stgBase
 }
 
 // ------------------------------------------------------------------------
 
-// NewVisitMemoryStorage returns a pointer to a newly created BadgerDB visit storage.
-func NewVisitStorage(path string, keepData bool) (*visitStorage, error) {
+// NewVisitStorage returns a pointer to a newly created BadgerDB visit storage.
+func NewVisitStorage(path string, keepData bool) (*stgVisit, error) {
 	cfg := config{
 		prefix:      []byte{byte(TYPE_VISIT), 0},
 		clearOnOpen: !keepData,
@@ -24,7 +24,7 @@ func NewVisitStorage(path string, keepData bool) (*visitStorage, error) {
 		return nil, err
 	}
 
-	return &visitStorage{
+	return &stgVisit{
 		s: s,
 	}, nil
 }
@@ -32,21 +32,21 @@ func NewVisitStorage(path string, keepData bool) (*visitStorage, error) {
 // ------------------------------------------------------------------------
 
 // Close closes the BadgerDB visit storage.
-func (s *visitStorage) Close() error {
+func (s *stgVisit) Close() error {
 	return s.s.Close()
 }
 
 // ------------------------------------------------------------------------
 
 // Clear removes all entries from the BadgerDB visit storage.
-func (s *visitStorage) Clear() error {
+func (s *stgVisit) Clear() error {
 	return s.s.Clear()
 }
 
 // ------------------------------------------------------------------------
 
 // Len returns the number of request visits in the BadgerDB visit storage.
-func (s *visitStorage) Len() (uint, error) {
+func (s *stgVisit) Len() (uint, error) {
 	return s.s.Len()
 
 }
@@ -54,7 +54,7 @@ func (s *visitStorage) Len() (uint, error) {
 // ------------------------------------------------------------------------
 
 // AddVisit stores a request ID that is visited by the Collector.
-func (s *visitStorage) AddVisit(key string) error {
+func (s *stgVisit) AddVisit(key string) error {
 	visits := uintToBytes(0)
 
 	if b, err := s.s.Get([]byte(key)); err == nil || b != nil {
@@ -67,7 +67,7 @@ func (s *visitStorage) AddVisit(key string) error {
 // ------------------------------------------------------------------------
 
 // PastVisits returns true if the request was visited before.
-func (s *visitStorage) PastVisits(key string) (uint, error) {
+func (s *stgVisit) PastVisits(key string) (uint, error) {
 	visits := uint(0)
 
 	b, err := s.s.Get([]byte(key))
@@ -76,6 +76,13 @@ func (s *visitStorage) PastVisits(key string) (uint, error) {
 	}
 
 	return visits, err
+}
+
+// ------------------------------------------------------------------------
+
+// Remove deletes a stored item by key.
+func (s *stgVisit) Remove(key string) error {
+	return s.s.DropPrefix([]byte(key))
 }
 
 // ------------------------------------------------------------------------

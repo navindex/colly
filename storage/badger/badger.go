@@ -20,7 +20,6 @@ type dbconn struct {
 type stgBase struct {
 	db     *dbconn
 	config *config
-	lock   *sync.Mutex
 	closed bool
 }
 
@@ -50,7 +49,7 @@ var connections = map[string]*dbconn{}
 // 0 value means no limit.
 var maxUseCount uint16 = 100
 
-var connLock = sync.Mutex{}
+var connLock = &sync.Mutex{}
 
 // ------------------------------------------------------------------------
 
@@ -157,8 +156,8 @@ func (s *stgBase) Clear() error {
 // ------------------------------------------------------------------------
 
 // DropPrefix drops all the keys with the provided prefix.
-func (s *stgBase) DropPrefix(prefix ...[]byte) error {
-	return s.db.dbh.DropPrefix(prefix...)
+func (s *stgBase) DropPrefix(prefix []byte) error {
+	return s.db.dbh.DropPrefix(append(s.config.prefix, prefix...))
 }
 
 // ------------------------------------------------------------------------
@@ -170,9 +169,6 @@ func (s *stgBase) Set(key, value []byte) error {
 	}
 
 	prefixedKey := append(s.config.prefix, key...)
-
-	s.lock.Lock()
-	defer s.lock.Unlock()
 
 	return s.db.dbh.Update(func(txn *badger.Txn) error {
 		return txn.Set(prefixedKey, value)
@@ -204,9 +200,6 @@ func (s *stgBase) Get(key []byte) ([]byte, error) {
 		value       []byte
 		prefixedKey = append(s.config.prefix, key...)
 	)
-
-	s.lock.Lock()
-	defer s.lock.Unlock()
 
 	err := s.db.dbh.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(prefixedKey)
@@ -247,9 +240,6 @@ func (s *stgBase) Len() (uint, error) {
 	var count uint
 
 	opt := badger.DefaultIteratorOptions
-
-	s.lock.Lock()
-	defer s.lock.Unlock()
 
 	if err := s.db.dbh.View(func(txn *badger.Txn) error {
 		it := txn.NewIterator(opt)

@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gobwas/glob"
 )
@@ -14,8 +16,9 @@ import (
 
 // Filter represents a number of including/excluding filters.
 type Filter struct {
-	incl []*filterItem
-	excl []*filterItem
+	incl map[string]*filterItem
+	excl map[string]*filterItem
+	lock *sync.RWMutex
 }
 
 // FilterEngine privides the function to match the filter.
@@ -63,8 +66,8 @@ type lengthFilter struct {
 
 // visitedFilter represents a filter that checks that the URL was visited before
 type visitFilter struct {
-	maxVisits uint
-	stg       VisitStorage
+	maxRevisits uint
+	stg         VisitStorage
 }
 
 // multiFilter combines multiple filter with AND or OR operator
@@ -93,9 +96,9 @@ const (
 // ------------------------------------------------------------------------
 
 var (
-	ErrFilterNoStorage    = errors.New("no storage was given")
-	ErrFilterNoEngine     = errors.New("no filter engine was given")
-	ErrFilterZeroMaxVisit = errors.New("maximum number of visits is zero, must be positive")
+	ErrFilterNoStorage    = errors.New("no storage was given")                              // ErrFilterNoStorage is thrown when no storage attribute was given.
+	ErrFilterItemReplaced = errors.New("a filter item with the same label was overwritten") // ErrFilterItemReplaced when an existing filter item with the same label was overwritten.
+	ErrFilterNoEngine     = errors.New("no filter engine was given")                        // ErrFilterNoEngine when an attampt was made to add a new filter item with no filter engine.
 )
 
 // ------------------------------------------------------------------------
@@ -103,59 +106,111 @@ var (
 // NewFilter returns a pointer to a newly created filter.
 func NewFilter() *Filter {
 	return &Filter{
-		incl: make([]*filterItem, 0),
-		excl: make([]*filterItem, 0),
+		incl: map[string]*filterItem{},
+		excl: map[string]*filterItem{},
+		lock: &sync.RWMutex{},
 	}
 }
 
-// Append appends a new filter to the filter list.
-func (f *Filter) Append(method FilterMethod, scope FilterScope, engine FilterEngine) {
+// ------------------------------------------------------------------------
+
+// Add adds a new filter item to the filter.
+func (f *Filter) Add(method FilterMethod, scope FilterScope, engine FilterEngine, label ...string) error {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	key, err := f.setKey(method, label)
+
 	if method == FILTER_METHOD_INCLUDE {
-		f.incl = append(f.incl, &filterItem{
+		f.incl[key] = &filterItem{
 			scope:  scope,
 			engine: engine,
-		})
+		}
+
+		return err
+	}
+
+	f.excl[key] = &filterItem{
+		scope:  scope,
+		engine: engine,
+	}
+
+	return err
+}
+
+// ------------------------------------------------------------------------
+
+// Has returns true if a filter item exists by method and label.
+func (f *Filter) Has(method FilterMethod, label string) bool {
+	if method == FILTER_METHOD_INCLUDE {
+		_, present := f.incl[label]
+
+		return present
+	}
+
+	_, present := f.excl[label]
+
+	return present
+}
+
+// ------------------------------------------------------------------------
+
+// Remove removes a filter with a specific method and label.
+func (f *Filter) Remove(method FilterMethod, label string) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	if method == FILTER_METHOD_INCLUDE {
+		delete(f.incl, label)
 
 		return
 	}
 
-	f.excl = append(f.excl, &filterItem{
-		scope:  scope,
-		engine: engine,
-	})
+	delete(f.excl, label)
 }
 
-// Remove removes all filters with a specific method and scope.
-func (f *Filter) Remove(method FilterMethod, scope FilterScope) {
-	var items []*filterItem
+// ------------------------------------------------------------------------
+
+// RemoveAll removes all filters with a specific method and scope.
+func (f *Filter) RemoveAll(method FilterMethod, scope FilterScope) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
 
 	if method == FILTER_METHOD_INCLUDE {
-		items = f.incl
-	} else {
-		items = f.excl
+		for key, item := range f.incl {
+			if item.scope == scope {
+				delete(f.incl, key)
+			}
+		}
+
+		return
 	}
 
-	newItems := []*filterItem{}
-	for _, item := range items {
-		if item.scope != scope {
-			newItems = append(newItems, item)
+	for key, item := range f.excl {
+		if item.scope == scope {
+			delete(f.excl, key)
 		}
 	}
-
-	if method == FILTER_METHOD_INCLUDE {
-		f.incl = newItems
-	} else {
-		f.excl = newItems
-	}
 }
+
+// ------------------------------------------------------------------------
 
 // Match reports whether the URL contains any match of the filter.
 // Excluding filters will be evaluated before including filters.
-func (f *Filter) Match(URL *url.URL) bool {
+// The optional tags will only check filters with matching tag.
+func (f *Filter) Match(URL *url.URL, tags ...string) bool {
 	segments := map[FilterScope]string{}
+	checkTag := len(tags) > 0
+
+	f.lock.RLock()
+	defer f.lock.RUnlock()
 
 	// Check the exclusions first
-	for _, item := range f.excl {
+	for key, item := range f.excl {
+		if checkTag && !InSlice(key, tags) {
+			continue
+		}
+
 		if _, present := segments[item.scope]; !present {
 			segments[item.scope] = item.segment(URL)
 		}
@@ -165,7 +220,11 @@ func (f *Filter) Match(URL *url.URL) bool {
 		}
 	}
 
-	for _, item := range f.incl {
+	for key, item := range f.incl {
+		if checkTag && !InSlice(key, tags) {
+			continue
+		}
+
 		if _, present := segments[item.scope]; !present {
 			segments[item.scope] = item.segment(URL)
 		}
@@ -177,6 +236,33 @@ func (f *Filter) Match(URL *url.URL) bool {
 	}
 
 	return false
+}
+
+// ------------------------------------------------------------------------
+
+func (f *Filter) setKey(method FilterMethod, label []string) (string, error) {
+	var (
+		key  string
+		list *map[string]*filterItem
+	)
+
+	if method == FILTER_METHOD_INCLUDE {
+		list = &f.incl
+	} else {
+		list = &f.excl
+	}
+
+	if len(label) > 0 {
+		key = label[0]
+	} else {
+		key = strconv.Itoa(1 + len(*list))
+	}
+
+	if f.Has(method, key) {
+		return key, ErrFilterItemReplaced
+	}
+
+	return key, nil
 }
 
 // ------------------------------------------------------------------------
@@ -282,27 +368,23 @@ func (f *lengthFilter) Match(str string) bool {
 // ------------------------------------------------------------------------
 
 // NewVisitedFilterItem returns a pointer to a newly created filter that check
-// whether or not the URL was visited. It must be used with REQUEST_ID_FILTER.
-func NewVisitedFilterItem(storage VisitStorage, maxVisits uint) (*visitFilter, error) {
+// whether or not the URL is eligible for a new visit.
+func NewVisitedFilterItem(storage VisitStorage, maxRevisits uint) (*visitFilter, error) {
 	if storage == nil {
 		return nil, ErrFilterNoStorage
 	}
 
-	if maxVisits == 0 {
-		return nil, ErrFilterZeroMaxVisit
-	}
-
 	return &visitFilter{
-		maxVisits: maxVisits,
-		stg:       storage,
+		maxRevisits: maxRevisits,
+		stg:         storage,
 	}, nil
 }
 
-// Match reports whether the string str contains any match of the filter.
+// Match returns true if the .
 func (f *visitFilter) Match(str string) bool {
 	visited, err := f.stg.PastVisits(str)
 
-	return err != nil || visited < f.maxVisits
+	return err != nil || visited <= f.maxRevisits
 }
 
 // ------------------------------------------------------------------------

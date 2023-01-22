@@ -106,9 +106,6 @@ func (s *stgFIFO) headKey() ([]byte, error) {
 // ------------------------------------------------------------------------
 
 func (s *stgFIFO) headValue(remove bool) (io.Reader, error) {
-	s.s.lock.Lock()
-	defer s.s.lock.Unlock()
-
 	// Find the head key
 	key, err := s.headKey()
 	if err != nil {

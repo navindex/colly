@@ -93,3 +93,14 @@ func (s *stgVisit) PastVisits(key string) (uint, error) {
 
 	return uint(visits), err
 }
+
+// ------------------------------------------------------------------------
+
+// Remove deletes a stored item by key.
+func (s *stgVisit) Remove(key string) error {
+	s.s.lock.Lock()
+	_, err := s.s.stmts["delete"].Exec(key)
+	s.s.lock.Unlock()
+
+	return err
+}
