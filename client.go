@@ -1,13 +1,9 @@
 package colly
 
 import (
-	"compress/gzip"
-	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 )
@@ -36,6 +32,9 @@ type clientConfig struct {
 	fc       *FilteredConfig
 	waitChan chan bool
 }
+
+// hdrChecker is a callback function that checks the response headers
+type hdrChecker func(req *http.Request, statusCode int, header http.Header) bool
 
 // ------------------------------------------------------------------------
 
@@ -72,15 +71,15 @@ func NewClient(config *CollectorConfig) *Client {
 }
 
 // ------------------------------------------------------------------------
-// Do sends checks the cache for a response or sends an HTTP request and returns an HTTP response,
+// Do checks the cache for a response or sends an HTTP request and returns an HTTP response,
 // following policy (such as redirects, cookies, auth) as configured on the client.
 // If the response was a success, it also tries to cache the response.
-func (c *Client) Do(req *http.Request, bodySize int, checkHdrFunc checkHeadersFunc) (*Response, error) {
-	useCache := req.Method == "GET" && req.Header.Get("Cache-Control") != "no-cache" && c.hasCache()
+func (c *Client) Do(req *Request, bodySize int, checkHdrFunc hdrChecker) (*Response, error) {
+	useCache := req.Req.Method == "GET" && hdrVal(req.Req.Header, "Cache-Control") != "no-cache" && c.hasCache()
 
 	// Try to serve the response from cache
 	if useCache {
-		if resp, err := c.Cache.Get(req.URL.String()); err == nil {
+		if resp, err := c.Cache.Get(req.Req.URL.String()); err == nil {
 			return resp, nil
 		}
 	}
@@ -124,6 +123,35 @@ func (c *Client) Match(URL *url.URL) *clientConfig {
 
 // ------------------------------------------------------------------------
 
+func (c *Client) do(req *Request, bodySize int, checkHdrFunc hdrChecker) (*Response, error) {
+	defer c.Sleep(req.Req.URL)
+
+	resp, err := c.Clt.Do(req.Req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	httpReq := req.Req
+	if resp.Request != nil {
+		httpReq = resp.Request
+	}
+
+	if !checkHdrFunc(httpReq, resp.StatusCode, resp.Header) {
+		// closing res.Body without reading it (see defer above)
+		// aborts the download
+		return nil, ErrAbortedAfterHeaders
+	}
+
+	return NewResponse(req, resp, req.collector.Config.DetectCharset, bodySize)
+}
+
+func (c *Client) hasCache() bool {
+	return c.Cache != nil
+}
+
+// ------------------------------------------------------------------------
+
 // The sleep method pauses the execution for a random delay that is calculateed
 // by combining the fix and a randomised delay of the client configuration settings.
 func (cc *clientConfig) sleep() {
@@ -138,68 +166,19 @@ func (cc *clientConfig) sleep() {
 	}
 
 	time.Sleep(delay)
+
+	// if r != nil {
+	// 	r.waitChan <- true
+	// 	defer func(r *LimitRule) {
+	// 		randomDelay := time.Duration(0)
+	// 		if r.RandomDelay != 0 {
+	// 			randomDelay = time.Duration(rand.Int63n(int64(r.RandomDelay)))
+	// 		}
+	// 		time.Sleep(r.Delay + randomDelay)
+	// 		<-r.waitChan
+	// 	}(r)
+	// }
+
 }
 
 // ------------------------------------------------------------------------
-
-func (c *Client) do(req *http.Request, bodySize int, checkHdrFunc checkHeadersFunc) (*Response, error) {
-	defer c.Sleep(req.URL)
-
-	if r != nil {
-		r.waitChan <- true
-		defer func(r *LimitRule) {
-			randomDelay := time.Duration(0)
-			if r.RandomDelay != 0 {
-				randomDelay = time.Duration(rand.Int63n(int64(r.RandomDelay)))
-			}
-			time.Sleep(r.Delay + randomDelay)
-			<-r.waitChan
-		}(r)
-	}
-
-	res, err := h.Client.Do(request)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	if res.Request != nil {
-		*request = *res.Request
-	}
-
-	if !checkHeadersFunc(request, res.StatusCode, res.Header) {
-		// closing res.Body (see defer above) without reading it aborts
-		// the download
-		return nil, ErrAbortedAfterHeaders
-	}
-
-	var bodyReader io.Reader = res.Body
-	if bodySize > 0 {
-		bodyReader = io.LimitReader(bodyReader, int64(bodySize))
-	}
-	contentEncoding := strings.ToLower(res.Header.Get("Content-Encoding"))
-	if !res.Uncompressed && (strings.Contains(contentEncoding, "gzip") || (contentEncoding == "" && strings.Contains(strings.ToLower(res.Header.Get("Content-Type")), "gzip")) || strings.HasSuffix(strings.ToLower(request.URL.Path), ".xml.gz")) {
-		bodyReader, err = gzip.NewReader(bodyReader)
-		if err != nil {
-			return nil, err
-		}
-		defer bodyReader.(*gzip.Reader).Close()
-	}
-
-	body, err := ioutil.ReadAll(bodyReader)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Response{
-		StatusCode: res.StatusCode,
-		Body:       body,
-		Headers:    &res.Header,
-	}, nil
-}
-
-// ------------------------------------------------------------------------
-
-func (c *Client) hasCache() bool {
-	return c.Cache != nil
-}
