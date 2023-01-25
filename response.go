@@ -2,6 +2,7 @@ package colly
 
 import (
 	"bytes"
+	"compress/gzip"
 	"io"
 	"mime"
 	"net/http"
@@ -29,13 +30,13 @@ type Response struct {
 // ------------------------------------------------------------------------
 
 // NewResponse returns a pointer to a newly created response.
-func NewResponse(req *Request, resp *http.Response, detectCharset bool) (*Response, error) {
+func NewResponse(req *Request, resp *http.Response, detectCharset bool, bodySize int) (*Response, error) {
 	r := &Response{
 		Request: req,
 		Resp:    resp,
 	}
 
-	if err := r.setBody(detectCharset); err != nil {
+	if err := r.setBody(detectCharset, bodySize); err != nil {
 		return nil, err
 	}
 
@@ -48,18 +49,31 @@ func NewResponse(req *Request, resp *http.Response, detectCharset bool) (*Respon
 
 // ------------------------------------------------------------------------
 
-func (r *Response) setBody(detectCharset bool) error {
-	data, err := io.ReadAll(r.Resp.Body)
-	if err == nil {
-		return err
-	}
-
-	r.Body = data
-	if len(r.Body) == 0 {
+func (r *Response) setBody(detectCharset bool, bodySize int) (err error) {
+	if r.Resp == nil {
 		return nil
 	}
 
-	contentType := strings.ToLower(r.Resp.Header.Get("Content-Type"))
+	var rdr io.Reader = r.Resp.Body
+	if bodySize > 0 {
+		rdr = io.LimitReader(rdr, int64(bodySize))
+	}
+
+	if isCompressed(r.Resp) {
+		rdr, err = gzip.NewReader(rdr)
+		if err != nil {
+			return err
+		}
+		defer rdr.(*gzip.Reader).Close()
+	}
+
+	r.Body, err = io.ReadAll(rdr)
+	if err != nil || len(r.Body) == 0 {
+		r.Body = nil
+		return err
+	}
+
+	contentType := hdrVal(r.Resp.Header, "Content-Type")
 
 	// Exit if content is not textual data
 	if noTextualData(contentType) {
@@ -219,4 +233,33 @@ func findHeaderTokenValue(hdr string, token string) *int {
 	}
 
 	return nil
+}
+
+// ------------------------------------------------------------------------
+
+func isCompressed(resp *http.Response) bool {
+	enc := hdrVal(resp.Header, "Content-Encoding")
+	path := strings.ToLower(resp.Request.URL.Path)
+
+	return !resp.Uncompressed && (strings.Contains(enc, "gzip") ||
+		(enc == "" && hasHdrVal(resp.Header, "Content-Type", "gzip")) ||
+		strings.HasSuffix(path, ".xml.gz"))
+}
+
+// ------------------------------------------------------------------------
+
+func hdrVal(hdr http.Header, key string) string {
+	return strings.ToLower(hdr.Get(key))
+}
+
+// ------------------------------------------------------------------------
+
+func isHhdrVal(hdr http.Header, key string, val string) bool {
+	return strings.EqualFold(hdrVal(hdr, key), val)
+}
+
+// ------------------------------------------------------------------------
+
+func hasHdrVal(hdr http.Header, key string, val string) bool {
+	return strings.Contains(hdrVal(hdr, key), val)
 }
