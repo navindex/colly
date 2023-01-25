@@ -1,17 +1,3 @@
-// Copyright 2018 Adam Tauber
-//
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-//      http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
-
 package colly
 
 import (
@@ -22,30 +8,36 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
-// Unmarshal is a shorthand for colly.UnmarshalHTML
+// ------------------------------------------------------------------------
+
+// Unmarshal is a shorthand for UnmarshalHTML.
 func (h *HTMLElement) Unmarshal(v interface{}) error {
 	return UnmarshalHTML(v, h.DOM, nil)
 }
 
-// UnmarshalWithMap is a shorthand for colly.UnmarshalHTML, extended to allow maps to be passed in.
+// ------------------------------------------------------------------------
+
+// UnmarshalWithMap is a shorthand for UnmarshalHTML, extended to allow maps to be passed in.
 func (h *HTMLElement) UnmarshalWithMap(v interface{}, structMap map[string]string) error {
 	return UnmarshalHTML(v, h.DOM, structMap)
 }
 
+// ------------------------------------------------------------------------
+
 // UnmarshalHTML declaratively extracts text or attributes to a struct from
 // HTML response using struct tags composed of css selectors.
 // Allowed struct tags:
-//  - "selector" (required): CSS (goquery) selector of the desired data
-//  - "attr" (optional): Selects the matching element's attribute's value.
+//   - "selector" (required): CSS (goquery) selector of the desired data
+//   - "attr" (optional): Selects the matching element's attribute's value.
 //     Leave it blank or omit to get the text of the element.
 //
 // Example struct declaration:
 //
-//   type Nested struct {
-//   	String  string   `selector:"div > p"`
-//      Classes []string `selector:"li" attr:"class"`
-//   	Struct  *Nested  `selector:"div > div"`
-//   }
+//	type Nested struct {
+//		String  string   `selector:"div > p"`
+//	    Classes []string `selector:"li" attr:"class"`
+//		Struct  *Nested  `selector:"div > div"`
+//	}
 //
 // Supported types: struct, *struct, string, []string
 func UnmarshalHTML(v interface{}, s *goquery.Selection, structMap map[string]string) error {
@@ -83,12 +75,16 @@ func UnmarshalHTML(v interface{}, s *goquery.Selection, structMap map[string]str
 	return nil
 }
 
+// ------------------------------------------------------------------------
+
 func unmarshalSelector(s *goquery.Selection, attrV reflect.Value, selector string) error {
-	//selector is "-" specify that field should ignore.
+	//selector "-" specifies that field should be ignored
 	if selector == "-" {
 		return nil
 	}
+
 	htmlAttr := ""
+
 	// TODO support more types
 	switch attrV.Kind() {
 	case reflect.Slice:
@@ -109,16 +105,20 @@ func unmarshalSelector(s *goquery.Selection, attrV reflect.Value, selector strin
 	default:
 		return errors.New("Invalid type: " + attrV.String())
 	}
+
 	return nil
 }
 
 func unmarshalAttr(s *goquery.Selection, attrV reflect.Value, attrT reflect.StructField) error {
 	selector := attrT.Tag.Get("selector")
-	//selector is "-" specify that field should ignore.
+
+	//selector "-" specifies that field should be ignored
 	if selector == "-" {
 		return nil
 	}
+
 	htmlAttr := attrT.Tag.Get("attr")
+
 	// TODO support more types
 	switch attrV.Kind() {
 	case reflect.Slice:
@@ -139,6 +139,7 @@ func unmarshalAttr(s *goquery.Selection, attrV reflect.Value, attrT reflect.Stru
 	default:
 		return errors.New("Invalid type: " + attrV.String())
 	}
+
 	return nil
 }
 
@@ -150,12 +151,15 @@ func unmarshalStruct(s *goquery.Selection, selector string, attrV reflect.Value)
 	if newS.Nodes == nil {
 		return nil
 	}
+
 	v := reflect.New(attrV.Type())
 	err := UnmarshalHTML(v.Interface(), newS, nil)
 	if err != nil {
 		return err
 	}
+
 	attrV.Set(reflect.Indirect(v))
+
 	return nil
 }
 
@@ -167,16 +171,20 @@ func unmarshalPtr(s *goquery.Selection, selector string, attrV reflect.Value) er
 	if newS.Nodes == nil {
 		return nil
 	}
+
 	e := attrV.Type().Elem()
 	if e.Kind() != reflect.Struct {
 		return errors.New("Invalid slice type")
 	}
+
 	v := reflect.New(e)
 	err := UnmarshalHTML(v.Interface(), newS, nil)
 	if err != nil {
 		return err
 	}
+
 	attrV.Set(v)
+
 	return nil
 }
 
@@ -185,6 +193,7 @@ func unmarshalSlice(s *goquery.Selection, selector, htmlAttr string, attrV refle
 		v := reflect.MakeSlice(attrV.Type(), 0, 0)
 		attrV.Set(v)
 	}
+
 	switch attrV.Type().Elem().Kind() {
 	case reflect.String:
 		s.Find(selector).Each(func(_ int, s *goquery.Selection) {
@@ -206,6 +215,7 @@ func unmarshalSlice(s *goquery.Selection, selector, htmlAttr string, attrV refle
 	default:
 		return errors.New("Invalid slice type")
 	}
+
 	return nil
 }
 
@@ -213,6 +223,8 @@ func getDOMValue(s *goquery.Selection, attr string) string {
 	if attr == "" {
 		return strings.TrimSpace(s.First().Text())
 	}
+
 	attrV, _ := s.Attr(attr)
+
 	return attrV
 }
