@@ -18,7 +18,7 @@ type (
 	EnvConfigSetter     func(c *CollectorConfig, val string) // EnvConfigSetter is a function to use an environment value to set a collector configuration option.
 	ParseStatusCallback func(status int) bool                // ParseStatusCallback is a callback to enable or disable parsing the response, based on the status code.
 	UserAgentCallback   func() string                        // UserAgentCallback is a callback function to return a user agent string.
-	HeaderCallback      func() *http.Header                  // HeaderCallback is a callback function to return a list of HTTP headers.
+	HeaderCallback      func() http.Header                   // HeaderCallback is a callback function to return a list of HTTP headers.
 )
 
 // CollectorConfig is a list of collection settings.
@@ -286,12 +286,12 @@ func (c *CollectorConfig) SetUserAgent(ua string) {
 
 // SetCustomHeaders sets the custom headers used by the Collector.
 func (c *CollectorConfig) SetCustomHeaders(headers map[string]string) {
-	customHdr := &http.Header{}
+	customHdr := http.Header{}
 	for header, value := range headers {
 		customHdr.Add(header, value)
 	}
 
-	c.HeaderCallback = func() *http.Header {
+	c.HeaderCallback = func() http.Header {
 		return customHdr
 	}
 }

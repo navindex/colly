@@ -119,6 +119,13 @@ func (r *Request) Clone(method string, rawURL string, body io.ReadCloser) (*Requ
 
 // ------------------------------------------------------------------------
 
+// Abort prevents to start further requests.
+func (r *Request) Abort() {
+	r.abort = true
+}
+
+// ------------------------------------------------------------------------
+
 // func (rp *requestHandler) Start() {
 
 // }
@@ -132,9 +139,9 @@ func (r *Request) Clone(method string, rawURL string, body io.ReadCloser) (*Requ
 // ------------------------------------------------------------------------
 
 // HasVisited checks if the provided URL has been visited.
-func (r *Request) HasVisited(URL string) (bool, error) {
-	return r.collector.HasVisited(URL)
-}
+// func (r *Request) HasVisited(URL string) (bool, error) {
+// 	return r.collector.HasVisited(URL)
+// }
 
 // ------------------------------------------------------------------------
 
@@ -150,8 +157,8 @@ func (r *Request) Visit(URL string) error {
 // Post continues a collector job by creating a POST request and
 // preserves the context of the previous request.
 // It also calls the previously provided callbacks.
-func (r *Request) Post(URL string, requestData map[string]string) error {
-	return r.collector.scrape(r.AbsoluteURL(URL), "POST", r.Depth+1, createFormReader(requestData), r.Ctx, nil, true)
+func (r *Request) Post(URL string, reqData map[string]string) error {
+	return r.collector.scrape(r.AbsoluteURL(URL), "POST", r.Depth+1, NewFormReader(reqData), r.Ctx, nil, true)
 }
 
 // ------------------------------------------------------------------------
@@ -159,8 +166,8 @@ func (r *Request) Post(URL string, requestData map[string]string) error {
 // PostRaw starts a collector job by creating a POST request with raw binary data.
 // PostRaw preserves the Context of the previous request.
 // It also calls the previously provided callbacks.
-func (r *Request) PostRaw(URL string, requestData []byte) error {
-	return r.collector.scrape(r.AbsoluteURL(URL), "POST", r.Depth+1, bytes.NewReader(requestData), r.Ctx, nil, true)
+func (r *Request) PostRaw(URL string, reqData []byte) error {
+	return r.collector.scrape(r.AbsoluteURL(URL), "POST", r.Depth+1, bytes.NewReader(reqData), r.Ctx, nil, true)
 }
 
 // ------------------------------------------------------------------------
@@ -168,14 +175,14 @@ func (r *Request) PostRaw(URL string, requestData []byte) error {
 // PostMultipart starts a collector job by creating a Multipart POST request
 // with raw binary data.
 // It also calls the previously provided callbacks.
-func (r *Request) PostMultipart(URL string, requestData map[string][]byte) error {
-	boundary := randomBoundary()
+func (r *Request) PostMultipart(URL string, reqData map[string][]byte) error {
+	boundary := RandomString(30)
 
 	hdr := http.Header{}
 	hdr.Set("Content-Type", "multipart/form-data; boundary="+boundary)
-	hdr.Set("User-Agent", r.collector.UserAgent)
+	hdr.Set("User-Agent", r.collector.Config.UserAgentCallback())
 
-	return r.collector.scrape(r.AbsoluteURL(URL), "POST", r.Depth+1, createMultipartReader(boundary, requestData), r.Ctx, hdr, true)
+	return r.collector.scrape(r.AbsoluteURL(URL), "POST", r.Depth+1, NewMultipartReader(boundary, reqData), r.Ctx, hdr, true)
 }
 
 // ------------------------------------------------------------------------
@@ -217,7 +224,7 @@ func (r *Request) ToBytes() ([]byte, error) {
 // 	var err error
 // 	var body []byte
 // 	if r.Body != nil {
-// 		body, err = ioutil.ReadAll(r.Body)
+// 		body, err = io.ReadAll(r.Body)
 // 		if err != nil {
 // 			return nil, err
 // 		}

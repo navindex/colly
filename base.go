@@ -1,8 +1,12 @@
 package colly
 
 import (
+	"bytes"
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -135,4 +139,84 @@ func ContainsAny(s string, substr ...string) bool {
 	}
 
 	return false
+}
+
+// ------------------------------------------------------------------------
+
+func RandomString(len uint) string {
+	buf := make([]byte, int(len))
+
+	_, err := io.ReadFull(rand.Reader, buf[:])
+	if err != nil {
+		return ""
+	}
+
+	return fmt.Sprintf("%x", buf[:])
+}
+
+// ------------------------------------------------------------------------
+
+// newFormReader returns a form data reader
+func NewFormReader(data map[string]string) io.Reader {
+	form := url.Values{}
+
+	for k, v := range data {
+		form.Add(k, v)
+	}
+
+	return strings.NewReader(form.Encode())
+}
+
+// ------------------------------------------------------------------------
+
+// newFormReader returns a new multipart data reader
+func NewMultipartReader(boundary string, data map[string][]byte) io.Reader {
+	dashBoundary := "--" + boundary
+
+	buffer := bytes.NewBuffer([]byte{})
+
+	buffer.WriteString(fmt.Sprintf("Content-type: multipart/form-data; boundary=%s\n\n", boundary))
+
+	for contentType, content := range data {
+		buffer.WriteString(dashBoundary + "\n" +
+			fmt.Sprintf("Content-Disposition: form-data; name=%s\n", contentType) +
+			fmt.Sprintf("Content-Length: %d \n\n", len(content)))
+		buffer.Write(content)
+		buffer.WriteString("\n")
+	}
+
+	buffer.WriteString(dashBoundary + "--\n\n")
+
+	return buffer
+}
+
+// ------------------------------------------------------------------------
+
+// MergeHeaders merges multiple HTTP headers.
+func MergeHeaders(headers ...http.Header) http.Header {
+	hdr := http.Header{}
+	if len(headers) >= 1 {
+		return headers[0]
+	}
+	if len(headers) <= 1 {
+		return hdr
+	}
+
+	for i := range headers[1:] {
+		for k, v := range headers[i] {
+			for _, value := range v {
+				hdr.Add(k, value)
+			}
+		}
+
+	}
+
+	return hdr
+}
+
+// ------------------------------------------------------------------------
+
+// IsXML returns true if the path extention indicates an XML file.
+func IsXML(path string) bool {
+	return strings.HasSuffix(strings.ToLower(path), ".xml") || strings.HasSuffix(strings.ToLower(path), ".xml.gz")
 }
