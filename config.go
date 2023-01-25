@@ -17,8 +17,8 @@ type (
 	ConfigSetter        func(c *CollectorConfig)             // ConfigSetter is a function to set a collector configuration option.
 	EnvConfigSetter     func(c *CollectorConfig, val string) // EnvConfigSetter is a function to use an environment value to set a collector configuration option.
 	ParseStatusCallback func(status int) bool                // ParseStatusCallback is a callback to enable or disable parsing the response, based on the status code.
-	UserAgentCallback   func(args ...any) string             // UserAgentCallback is a callback function to return a user agent sting.
-	HeaderCallback      func(args ...any) *http.Header       // HeaderCallback is a callback function to return a user agent sting.
+	UserAgentCallback   func() string                        // UserAgentCallback is a callback function to return a user agent string.
+	HeaderCallback      func() *http.Header                  // HeaderCallback is a callback function to return a list of HTTP headers.
 )
 
 // CollectorConfig is a list of collection settings.
@@ -100,7 +100,7 @@ type FilteredConfig struct {
 var EnvMap = map[string]EnvConfigSetter{
 	"ALLOWED_DOMAINS":    func(c *CollectorConfig, val string) { c.SetAllowedDomains(strings.Split(val, ",")) },
 	"DISALLOWED_DOMAINS": func(c *CollectorConfig, val string) { c.SetDisallowedDomains(strings.Split(val, ",")) },
-	"USER_AGENT":         func(c *CollectorConfig, val string) { c.UserAgentCallback = func(_ ...any) string { return val } },
+	"USER_AGENT":         func(c *CollectorConfig, val string) { c.UserAgentCallback = func() string { return val } },
 	"DETECT_CHARSET": func(c *CollectorConfig, val string) {
 		if b, err := StrToBool(val); err != nil {
 			c.logError(LOG_WARN_LEVEL, fmt.Errorf("DETECT_CHARSET error: %v", err))
@@ -195,7 +195,7 @@ func NewConfig() *CollectorConfig {
 		MaxBodySize:         10 * 1024 * 1024,
 		IgnoreRobotsTxt:     true,
 		MaxThreads:          1,
-		UserAgentCallback:   func(_ ...any) string { return "colly v3" },
+		UserAgentCallback:   func() string { return "colly v3" },
 		Cache:               cache,
 		ParseStatusCallback: parseSuccessResponse,
 		FollowRedirects:     true,
@@ -279,7 +279,7 @@ func (c *CollectorConfig) SetDisallowedDomains(domains []string) error {
 
 // SetUserAgent sets the user agent used by the Collector.
 func (c *CollectorConfig) SetUserAgent(ua string) {
-	c.UserAgentCallback = func(_ ...any) string {
+	c.UserAgentCallback = func() string {
 		return ua
 	}
 }
@@ -291,7 +291,7 @@ func (c *CollectorConfig) SetCustomHeaders(headers map[string]string) {
 		customHdr.Add(header, value)
 	}
 
-	c.HeaderCallback = func(_ ...any) *http.Header {
+	c.HeaderCallback = func() *http.Header {
 		return customHdr
 	}
 }
