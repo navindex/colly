@@ -37,8 +37,6 @@ var (
 	ErrNoHTTPRequest       = errors.New("HTTP Request reference is nil")            // ErrNoHTTPRequest is thrown when the HTTP request pointer is set to nil.
 	ErrNoCollector         = errors.New("Collector reference is nil")               // ErrNoCollector is thrown when the Collector pointer is set to nil.
 	ErrMaxDepth            = errors.New("max depth limit reached")                  // ErrMaxDepth is thrown for exceeding max depth.
-	ErrForbiddenURL        = errors.New("forbidden URL")                            // ErrForbiddenURL is thrown for visiting a URL that is not allowed.
-	ErrNoMatchingFilter    = errors.New("no filter match")                          // ErrNoMatchingFilter is thrown when visiting a URL that is not allowed by filters.
 	ErrRobotsTxtBlocked    = errors.New("URL blocked by robots.txt")                // ErrRobotsTxtBlocked is thrown for robots.txt errors.
 	ErrNoCookieJar         = errors.New("cookie jar not available")                 // ErrNoCookieJar is thrown for missing cookie jar.
 	ErrNoFilterDefined     = errors.New("no filter defined")                        // ErrNoFilterDefined is thrown when no valid filter was provided.

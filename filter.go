@@ -1,15 +1,11 @@
 package colly
 
 import (
+	"colly/filters"
+	"colly/storage/mem"
 	"errors"
-	"fmt"
-	"net/url"
-	"regexp"
 	"strconv"
-	"strings"
 	"sync"
-
-	"github.com/gobwas/glob"
 )
 
 // ------------------------------------------------------------------------
@@ -23,7 +19,8 @@ type Filter struct {
 
 // FilterEngine privides the function to match the filter.
 type FilterEngine interface {
-	Match(string) bool
+	Match(any) bool // Match returns true if the filter is a match.
+	// MatchError() error // MatchError returns the error that will be used for exclusive match.
 }
 
 // FilterMethod tells whether the filter supposed to include or exclude matches.
@@ -32,48 +29,11 @@ type FilterMethod bool
 // FilterScope points out which part of the URL will be matched.
 type FilterScope uint8
 
-// FilterOperator identifies the the logical operator for combined filter engines.
-type FilterOperator uint8
-
-// VisitStorage is a Storage to save and retreive visiting information.
-type VisitStorage interface {
-	AddVisit(key string) error           // AddVisit stores an URL that is visited.
-	PastVisits(key string) (uint, error) // PastVisits returns how many times the URL was visited before.
-	Remove(key string) error             // Remove removes an entry by URL.
-	Clear() error                        // Clear deletes all stored items.
-}
-
 // filterItem represent an including/excluding URL filter
 type filterItem struct {
 	scope  FilterScope
 	engine FilterEngine
-}
-
-// globFilter represents a number of glob expression filters
-type globFilter struct {
-	globs []glob.Glob
-}
-
-// regexpFilter represents a number of regular expression filters
-type regexpFilter struct {
-	re []*regexp.Regexp
-}
-
-// lengthFilter represents an URL length filter
-type lengthFilter struct {
-	limit uint
-}
-
-// visitedFilter represents a filter that checks that the URL was visited before
-type visitFilter struct {
-	maxRevisits uint
-	stg         VisitStorage
-}
-
-// multiFilter combines multiple filter with AND or OR operator
-type multiFilter struct {
-	items []FilterEngine
-	op    FilterOperator
+	err    error
 }
 
 // ------------------------------------------------------------------------
@@ -84,21 +44,24 @@ const (
 )
 
 const (
-	FILTER_OPERATOR_AND FilterOperator = iota
-	FILTER_OPERATOR_OR
-)
-
-const (
 	DOMAIN_FILTER FilterScope = iota
 	URL_FILTER
+	DEPTH_FILTER
+	REQUEST_FILTER
 )
 
 // ------------------------------------------------------------------------
 
 var (
-	ErrFilterNoStorage    = errors.New("no storage was given")                              // ErrFilterNoStorage is thrown when no storage attribute was given.
-	ErrFilterItemReplaced = errors.New("a filter item with the same label was overwritten") // ErrFilterItemReplaced when an existing filter item with the same label was overwritten.
-	ErrFilterNoEngine     = errors.New("no filter engine was given")                        // ErrFilterNoEngine when an attampt was made to add a new filter item with no filter engine.
+	ErrFilterItemReplaced     = errors.New("a filter item with the same label was overwritten") // ErrFilterItemReplaced when an existing filter item with the same label was overwritten.
+	ErrFilterNoEngine         = errors.New("no filter engine was given")                        // ErrFilterNoEngine when an attampt was made to add a new filter item with no filter engine.
+	ErrFilterURLDisallowed    = errors.New("URL is not allowed")                                // ErrFilterURLDisallowed is thrown for attempting to visit a URL that is not allowed.
+	ErrFilterDomainDisallowed = errors.New("domain is not allowed")                             // ErrFilterDomainDisallowed is thrown for attempting to visit a domain that is not allowed.
+	ErrFilterNoMatch          = errors.New("no matching filter")                                // ErrFilterNoMatch is thrown if no matching inclusive filter found.
+	ErrFilterURLLength        = errors.New("URL is too long or too short")                      // ErrFilterURLLength is thrown when the URL length is outside of the limits.
+	ErrFilterNoRevisit        = errors.New("the URL cannot be revisited")                       // ErrFilterNoRevisit is thrown when the number of revisits exhausted.
+	ErrFilterNoRequest        = errors.New("request is missing, nothing to check")              // ErrFilterNoRequest is thrown when the request attribute of the Match function is nil.
+	ErrFilterMaxDepth         = errors.New("maximum request depth limit reached")               // ErrFilterMaxDepth is thrown when the maximum request depth limit reached.
 )
 
 // ------------------------------------------------------------------------
@@ -114,8 +77,86 @@ func NewFilter() *Filter {
 
 // ------------------------------------------------------------------------
 
+// AddDomainGlob is a convenience method to add domain glob engine to the filter.
+func (f *Filter) AddDomainGlob(method FilterMethod, globFilters []string, label ...string) error {
+	engine, err := filters.NewGlobEngine(globFilters)
+	if err != nil {
+		return err
+	}
+
+	return f.AddEngine(method, DOMAIN_FILTER, engine, ErrFilterDomainDisallowed, label...)
+}
+
+// ------------------------------------------------------------------------
+
+// AddURLGlob is a convenience method to add URL glob engine to the filter.
+func (f *Filter) AddURLGlob(method FilterMethod, globFilters []string, label ...string) error {
+	engine, err := filters.NewGlobEngine(globFilters)
+	if err != nil {
+		return err
+	}
+
+	return f.AddEngine(method, URL_FILTER, engine, ErrFilterURLDisallowed, label...)
+}
+
+// ------------------------------------------------------------------------
+
+// AddDomainRegexp is a convenience method to add domain regexp engine to the filter.
+func (f *Filter) AddDomainRegexp(method FilterMethod, regexpFilters []string, label ...string) error {
+	engine, err := filters.NewRegexpEngine(regexpFilters)
+	if err != nil {
+		return err
+	}
+
+	return f.AddEngine(method, DOMAIN_FILTER, engine, ErrFilterDomainDisallowed, label...)
+}
+
+// ------------------------------------------------------------------------
+
+// AddURLRegexp is a convenience method to add URL regexp engine to the filter.
+func (f *Filter) AddURLRegexp(method FilterMethod, regexpFilters []string, label ...string) error {
+	engine, err := filters.NewRegexpEngine(regexpFilters)
+	if err != nil {
+		return err
+	}
+
+	return f.AddEngine(method, URL_FILTER, engine, ErrFilterURLDisallowed, label...)
+}
+
+// ------------------------------------------------------------------------
+
+// AddURLLength is a convenience method to add URL length engine to the filter.
+func (f *Filter) AddURLLength(minLength uint, maxLength uint, label ...string) error {
+	return f.AddEngine(FILTER_METHOD_EXCLUDE, URL_FILTER, filters.NewURLLengthEngine(minLength, maxLength), ErrFilterURLLength, label...)
+}
+
+// ------------------------------------------------------------------------
+
+// AddRequestDepth is a convenience method to add request depth engine to the filter.
+func (f *Filter) AddRequestDepth(maxDepth uint, label ...string) error {
+	return f.AddEngine(FILTER_METHOD_EXCLUDE, URL_FILTER, filters.NewRequestDepthEngine(maxDepth), ErrFilterMaxDepth, label...)
+}
+
+// ------------------------------------------------------------------------
+
+// AddRevisit is a convenience method to add URL revisit engine to the filter.
+func (f *Filter) AddRevisit(maxRevisits uint, storage filters.VisitStorage, label ...string) error {
+	if storage == nil {
+		storage = mem.NewVisitStorage()
+	}
+
+	engine, err := filters.NewRevisitEngine(storage, maxRevisits)
+	if err != nil {
+		return err
+	}
+
+	return f.AddEngine(FILTER_METHOD_EXCLUDE, URL_FILTER, engine, ErrFilterNoRevisit, label...)
+}
+
+// ------------------------------------------------------------------------
+
 // Add adds a new filter item to the filter.
-func (f *Filter) Add(method FilterMethod, scope FilterScope, engine FilterEngine, label ...string) error {
+func (f *Filter) AddEngine(method FilterMethod, scope FilterScope, engine FilterEngine, err error, label ...string) error {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
@@ -125,6 +166,7 @@ func (f *Filter) Add(method FilterMethod, scope FilterScope, engine FilterEngine
 		f.incl[key] = &filterItem{
 			scope:  scope,
 			engine: engine,
+			err:    err,
 		}
 
 		return err
@@ -140,12 +182,15 @@ func (f *Filter) Add(method FilterMethod, scope FilterScope, engine FilterEngine
 
 // ------------------------------------------------------------------------
 
-// Has returns true if a filter item exists by method and label.
-func (f *Filter) Has(method FilterMethod, label string) bool {
-	if method == FILTER_METHOD_INCLUDE {
-		_, present := f.incl[label]
+// Has returns true if a filter item exists by label and optional method.
+func (f *Filter) Has(label string, method ...FilterMethod) bool {
+	hasMethod := len(method) > 0
+	isInclude := hasMethod && method[0] == FILTER_METHOD_INCLUDE
 
-		return present
+	if !hasMethod || isInclude {
+		if _, present := f.incl[label]; present || isInclude {
+			return present
+		}
 	}
 
 	_, present := f.excl[label]
@@ -155,15 +200,18 @@ func (f *Filter) Has(method FilterMethod, label string) bool {
 
 // ------------------------------------------------------------------------
 
-// Remove removes a filter with a specific method and label.
-func (f *Filter) Remove(method FilterMethod, label string) {
+// Remove removes a filter with a specific label and optional method.
+func (f *Filter) Remove(label string, method ...FilterMethod) {
+	hasMethod := len(method) > 0
+	isInclude := hasMethod && method[0] == FILTER_METHOD_INCLUDE
+
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
-	if method == FILTER_METHOD_INCLUDE {
-		delete(f.incl, label)
-
-		return
+	if !hasMethod || isInclude {
+		if delete(f.incl, label); isInclude {
+			return
+		}
 	}
 
 	delete(f.excl, label)
@@ -171,19 +219,23 @@ func (f *Filter) Remove(method FilterMethod, label string) {
 
 // ------------------------------------------------------------------------
 
-// RemoveAll removes all filters with a specific method and scope.
-func (f *Filter) RemoveAll(method FilterMethod, scope FilterScope) {
+// RemoveByScope removes all filters with a specific scope and optional method.
+func (f *Filter) RemoveByScope(scope FilterScope, method ...FilterMethod) {
+	hasMethod := len(method) > 0
+	isInclude := hasMethod && method[0] == FILTER_METHOD_INCLUDE
+
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
-	if method == FILTER_METHOD_INCLUDE {
+	if !hasMethod || isInclude {
 		for key, item := range f.incl {
 			if item.scope == scope {
 				delete(f.incl, key)
 			}
 		}
-
-		return
+		if isInclude {
+			return
+		}
 	}
 
 	for key, item := range f.excl {
@@ -195,11 +247,16 @@ func (f *Filter) RemoveAll(method FilterMethod, scope FilterScope) {
 
 // ------------------------------------------------------------------------
 
-// Match reports whether the URL contains any match of the filter.
+// Match returns error if the Request matches any exclusive fiter or
+// inclusive filters exist and the Request doesn't match any of them.
 // Excluding filters will be evaluated before including filters.
 // The optional tags will only check filters with matching tag.
-func (f *Filter) Match(URL *url.URL, tags ...string) bool {
-	segments := map[FilterScope]string{}
+func (f *Filter) Match(req *Request, tags ...string) error {
+	if req == nil {
+		return ErrFilterNoRequest
+	}
+
+	segments := map[FilterScope]any{}
 	checkTag := len(tags) > 0
 
 	f.lock.RLock()
@@ -212,30 +269,50 @@ func (f *Filter) Match(URL *url.URL, tags ...string) bool {
 		}
 
 		if _, present := segments[item.scope]; !present {
-			segments[item.scope] = item.segment(URL)
+			segments[item.scope] = item.segment(req)
 		}
 
 		if item.engine.Match(segments[item.scope]) {
-			return false
+			return item.err
 		}
 	}
 
+	// If no inclusive filter, everything is allowed
+	if len(f.incl) == 0 {
+		return nil
+	}
+
+	// Check for any matching inclusive filter
 	for key, item := range f.incl {
 		if checkTag && !InSlice(key, tags) {
 			continue
 		}
 
 		if _, present := segments[item.scope]; !present {
-			segments[item.scope] = item.segment(URL)
+			segments[item.scope] = item.segment(req)
 		}
 
 		if item.engine.Match(segments[item.scope]) {
-			return true
+			return nil
 		}
 
 	}
 
-	return false
+	return ErrFilterNoMatch
+}
+
+// ------------------------------------------------------------------------
+
+// Count returns the number of filter items attached to this filter.
+func (f *Filter) Count() int {
+	return len(f.incl) + len(f.excl)
+}
+
+// ------------------------------------------------------------------------
+
+// IsEmpty returns true if no filter items attached to this filter.
+func (f *Filter) IsEmpty() bool {
+	return len(f.incl) == 0 && len(f.excl) == 0
 }
 
 // ------------------------------------------------------------------------
@@ -258,7 +335,7 @@ func (f *Filter) setKey(method FilterMethod, label []string) (string, error) {
 		key = strconv.Itoa(1 + len(*list))
 	}
 
-	if f.Has(method, key) {
+	if f.Has(key, method) {
 		return key, ErrFilterItemReplaced
 	}
 
@@ -267,174 +344,21 @@ func (f *Filter) setKey(method FilterMethod, label []string) (string, error) {
 
 // ------------------------------------------------------------------------
 
-// NewGlobFilterItem returns a pointer to a newly created glob pattern filter.
-func NewGlobFilterItem(filters []string) (*globFilter, error) {
-	f := &globFilter{
-		globs: []glob.Glob{},
-	}
-
-	errList := []string{}
-
-	// Compile and add the filters
-	for _, fltr := range filters {
-		if len(fltr) == 0 {
-			continue
-		}
-
-		glb, err := glob.Compile(fltr)
-		if err != nil {
-			errList = append(errList, fltr)
-			continue
-		}
-
-		f.globs = append(f.globs, glb)
-	}
-
-	if len(errList) > 0 {
-		return f, fmt.Errorf("unable to compile the following filters: %v", "`"+strings.Join(errList, "`, `")+"`")
-	}
-
-	return f, nil
-}
-
-// Match reports whether the string str contains any match of the filter.
-func (f *globFilter) Match(str string) bool {
-	for _, glb := range f.globs {
-		if glb.Match(str) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// ------------------------------------------------------------------------
-
-// NewRegexpFilterItem returns a pointer to a newly created regular expression filter.
-func NewRegexpFilterItem(filters []string) (*regexpFilter, error) {
-	f := &regexpFilter{
-		re: []*regexp.Regexp{},
-	}
-
-	errList := []string{}
-
-	// Compile and add the filters
-	for _, fltr := range filters {
-		if len(fltr) == 0 {
-			continue
-		}
-
-		re, err := regexp.Compile(fltr)
-		if err != nil {
-			errList = append(errList, fltr)
-			continue
-		}
-
-		f.re = append(f.re, re)
-	}
-
-	if len(errList) > 0 {
-		return f, fmt.Errorf("unable to compile the following filters: %v", "`"+strings.Join(errList, "`, `")+"`")
-	}
-
-	return f, nil
-}
-
-// Match reports whether the string str contains any match of the filter.
-func (f *regexpFilter) Match(str string) bool {
-	for _, re := range f.re {
-		if re.MatchString(str) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// ------------------------------------------------------------------------
-
-// NewLengthFilterItem returns a pointer to a newly created URL Length filter.
-func NewLengthFilterItem(maxLength uint) *lengthFilter {
-	return &lengthFilter{
-		limit: maxLength,
-	}
-}
-
-// Match reports whether the string str contains any match of the filter.
-func (f *lengthFilter) Match(str string) bool {
-	return len(str) <= int(f.limit)
-}
-
-// ------------------------------------------------------------------------
-
-// NewVisitedFilterItem returns a pointer to a newly created filter that check
-// whether or not the URL is eligible for a new visit.
-func NewVisitedFilterItem(storage VisitStorage, maxRevisits uint) (*visitFilter, error) {
-	if storage == nil {
-		return nil, ErrFilterNoStorage
-	}
-
-	return &visitFilter{
-		maxRevisits: maxRevisits,
-		stg:         storage,
-	}, nil
-}
-
-// Match returns true if the .
-func (f *visitFilter) Match(str string) bool {
-	visited, err := f.stg.PastVisits(str)
-
-	return err != nil || visited <= f.maxRevisits
-}
-
-// ------------------------------------------------------------------------
-
-// NewCombinedFilterItems returns a pointer to a newly created combined filter.
-func NewCombinedFilterItems(op FilterOperator, filters ...FilterEngine) (*multiFilter, error) {
-	if len(filters) == 0 {
-		return nil, ErrFilterNoEngine
-	}
-
-	return &multiFilter{
-		items: filters,
-		op:    op,
-	}, nil
-}
-
-// Match reports whether the string str contains match of any filter or all filters,
-// depending on the logical operator.
-func (f *multiFilter) Match(str string) bool {
-	switch f.op {
-	case FILTER_OPERATOR_AND:
-		for _, filter := range f.items {
-			if !filter.Match(str) {
-				return false
-			}
-		}
-
-		return true
-	case FILTER_OPERATOR_OR:
-		for _, filter := range f.items {
-			if filter.Match(str) {
-				return true
-			}
-		}
-
-		return false
-	}
-
-	return false
-}
-
-// ------------------------------------------------------------------------
-
-func (i *filterItem) segment(URL *url.URL) string {
+func (i *filterItem) segment(req *Request) any {
 	switch i.scope {
 	case DOMAIN_FILTER:
-		return URL.Hostname()
+		if req.Req == nil || req.Req.URL == nil {
+			return nil
+		}
+		return req.Req.URL.Hostname()
 	case URL_FILTER:
-		return URL.String()
+		if req.Req == nil || req.Req.URL == nil {
+			return nil
+		}
+		return req.Req.URL.String()
+	case DEPTH_FILTER:
+		return req.Depth
+	default:
+		return req
 	}
-
-	return ""
 }

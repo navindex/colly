@@ -1,6 +1,7 @@
 package colly
 
 import (
+	"colly/filters"
 	"colly/storage/filesys"
 	"colly/storage/mem"
 	"fmt"
@@ -243,38 +244,24 @@ func (c *CollectorConfig) ProcessEnv(env Environment, envMap map[string]EnvConfi
 
 // SetAllowedDomains is a convenience method to set the allowed domains.
 func (c *CollectorConfig) SetAllowedDomains(domains []string) error {
-	f, err := NewGlobFilterItem(domains)
-	if err != nil {
-		return err
-	}
-
 	if c.Filter == nil {
 		c.Filter = NewFilter()
 	} else {
-		c.Filter.RemoveAll(FILTER_METHOD_INCLUDE, DOMAIN_FILTER)
+		c.Filter.RemoveByScope(DOMAIN_FILTER, FILTER_METHOD_INCLUDE)
 	}
 
-	c.Filter.Add(FILTER_METHOD_INCLUDE, DOMAIN_FILTER, f)
-
-	return nil
+	return c.Filter.AddDomainGlob(FILTER_METHOD_INCLUDE, domains, "allowed_domains")
 }
 
 // SetDisallowedDomains is a convenience method to set the disallowed domains.
 func (c *CollectorConfig) SetDisallowedDomains(domains []string) error {
-	f, err := NewGlobFilterItem(domains)
-	if err != nil {
-		return err
-	}
-
 	if c.Filter == nil {
 		c.Filter = NewFilter()
 	} else {
-		c.Filter.RemoveAll(FILTER_METHOD_EXCLUDE, DOMAIN_FILTER)
+		c.Filter.RemoveByScope(DOMAIN_FILTER, FILTER_METHOD_EXCLUDE)
 	}
 
-	c.Filter.Add(FILTER_METHOD_EXCLUDE, DOMAIN_FILTER, f)
-
-	return nil
+	return c.Filter.AddDomainGlob(FILTER_METHOD_EXCLUDE, domains, "disallowed_domains")
 }
 
 // SetUserAgent sets the user agent used by the Collector.
@@ -368,26 +355,19 @@ func (c *CollectorConfig) SetFileCache(path string, expHandler CacheExpiryHandle
 // SetMaxRevisits sets how many times the same URL can be visited.
 // The storage attribute, if not nil, will be used to store the number of visits.
 // If no storage is given, the visits will be used in the memory.
-func (c *CollectorConfig) SetMaxRevisits(maxRevisits uint, storage ...VisitStorage) error {
+func (c *CollectorConfig) SetMaxRevisits(maxRevisits uint, storage ...filters.VisitStorage) error {
 	const label = "revisit"
-	var stg VisitStorage
+	var stg filters.VisitStorage
 
 	if len(storage) > 0 {
 		stg = storage[0]
-	} else {
-		stg = mem.NewVisitStorage()
-	}
-
-	f, err := NewVisitedFilterItem(stg, maxRevisits)
-	if err != nil {
-		return err
 	}
 
 	if c.Filter == nil {
 		c.Filter = NewFilter()
 	}
 
-	return c.Filter.Add(FILTER_METHOD_INCLUDE, URL_FILTER, f, label)
+	return c.Filter.AddRevisit(maxRevisits, stg, "revisit")
 }
 
 // ------------------------------------------------------------------------
