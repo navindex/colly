@@ -188,7 +188,7 @@ func (s *stgBase) Clear() error {
 // ------------------------------------------------------------------------
 
 // Len returns the number of entries in the SQLite3 storage.
-func (s *stgBase) Len() (uint, error) {
+func (s *stgBase) Len(args ...any) (uint, error) {
 	cmd := "count"
 
 	stmt, present := s.stmts[cmd]
@@ -201,7 +201,7 @@ func (s *stgBase) Len() (uint, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	if err := stmt.QueryRow().Scan(&count); err != nil {
+	if err := stmt.QueryRow(args...).Scan(&count); err != nil {
 		return 0, err
 	}
 

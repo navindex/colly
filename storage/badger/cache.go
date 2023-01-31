@@ -48,7 +48,7 @@ func (s *stgCache) Clear() error {
 
 // Len returns the number of items in the BadgerDB cache storage.
 func (s *stgCache) Len() (uint, error) {
-	return s.s.Len()
+	return s.s.Len(nil)
 }
 
 // ------------------------------------------------------------------------

@@ -96,15 +96,10 @@ func (s *stgVisit) PastVisits(key string) (uint, error) {
 		return 0, storage.ErrStorageClosed
 	}
 
-	visits := uint(0)
-
 	s.lock.RLock()
-	if v, present := s.visits[key]; !present {
-		visits = v
-	}
-	s.lock.RUnlock()
+	defer s.lock.RUnlock()
 
-	return visits, nil
+	return s.visits[key], nil
 }
 
 // ------------------------------------------------------------------------

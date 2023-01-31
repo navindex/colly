@@ -44,54 +44,93 @@ func (s *stgFIFO) Close() error {
 
 // ------------------------------------------------------------------------
 
+// Capacity returns the maximum number of items that can be stored in the FIFO storage.
+func (s *stgFIFO) Capacity() uint {
+	return 1000000000
+}
+
+// ------------------------------------------------------------------------
+
 // Clear removes all entries from the BadgerDB FIFO storage.
-func (s *stgFIFO) Clear() error {
-	return s.s.Clear()
+func (s *stgFIFO) Clear(ids ...uint32) error {
+	if len(ids) == 0 {
+		return s.s.Clear()
+	}
+
+	for _, id := range ids {
+		s.s.DropPrefix(s.prefixedID(id))
+	}
+
+	return nil
 }
 
 // ------------------------------------------------------------------------
 
 // Len returns the number of request queues in the BadgerDB FIFO storage.
-func (s *stgFIFO) Len() (uint, error) {
-	return s.s.Len()
+func (s *stgFIFO) Len(id uint32) (uint, error) {
+	return s.s.Len(encodeID(id))
 }
 
 // ------------------------------------------------------------------------
 
 // Push inserts an item into the BadgerDB FIFO storage.
-func (s *stgFIFO) Push(item io.Reader) error {
+func (s *stgFIFO) Push(id uint32, item io.Reader) error {
 	data, err := io.ReadAll(item)
 	if err != nil {
 		return err
 	}
 
-	return s.s.Set(encodeTime(time.Now()), data)
+	key := append(encodeID(id), encodeTime(time.Now())...)
+
+	return s.s.Set(key, data)
 }
 
 // ------------------------------------------------------------------------
 
 // Pop pops the oldest item from the FIFO storage or returns error if the storage is empty.
-func (s *stgFIFO) Pop() (io.Reader, error) {
-	return s.headValue(true)
+func (s *stgFIFO) Pop(id uint32) (io.Reader, error) {
+	return s.headValue(encodeID(id), true)
 }
+
+// ------------------------------------------------------------------------
+
+// Pop pops maxmum n of the oldest item from the FIFO storage
+// or returns error if the storage is empty.
+// func (s *stgFIFO) MultiPop(n uint) ([]io.Reader, error) {
+// 	if n < 1 {
+// 		return nil, storage.ErrInvalidNumber
+// 	}
+
+// 	items := []io.Reader{}
+// 	for i := uint(0); i < n; i++ {
+// 		item, err := s.headValue(true)
+// 		if err != nil {
+// 			return items, err
+// 		}
+// 		items = append(items, item)
+// 	}
+
+// 	return items, nil
+// }
 
 // ------------------------------------------------------------------------
 
 // Peek returns the oldest item from the queue without removing it.
-func (s *stgFIFO) Peek() (io.Reader, error) {
-	return s.headValue(false)
+func (s *stgFIFO) Peek(id uint32) (io.Reader, error) {
+	return s.headValue(encodeID(id), false)
 }
 
 // ------------------------------------------------------------------------
 
-func (s *stgFIFO) headKey() ([]byte, error) {
+func (s *stgFIFO) headKey(prefix []byte) ([]byte, error) {
 	var key []byte
 
+	p := append(s.s.config.prefix, prefix...)
 	opt := badger.DefaultIteratorOptions
 	err := s.s.db.dbh.View(func(txn *badger.Txn) error {
 		it := txn.NewIterator(opt)
 		defer it.Close()
-		for it.Rewind(); it.ValidForPrefix(s.s.config.prefix); it.Next() {
+		for it.Rewind(); it.ValidForPrefix(p); it.Next() {
 			iKey := it.Item().Key()
 			if bytes.Compare(key, iKey) == -1 {
 				copy(key, iKey)
@@ -103,11 +142,13 @@ func (s *stgFIFO) headKey() ([]byte, error) {
 	return key, err
 }
 
-// ------------------------------------------------------------------------
+func (s *stgFIFO) headValue(prefix []byte, remove bool) (io.Reader, error) {
+	if prefix == nil {
+		return nil, storage.ErrBlankKey
+	}
 
-func (s *stgFIFO) headValue(remove bool) (io.Reader, error) {
 	// Find the head key
-	key, err := s.headKey()
+	key, err := s.headKey(prefix)
 	if err != nil {
 		return nil, err
 	}
@@ -140,12 +181,24 @@ func (s *stgFIFO) headValue(remove bool) (io.Reader, error) {
 	return bytes.NewReader(data), err
 }
 
+func (s *stgFIFO) prefixedID(id uint32) []byte {
+	return append(s.s.config.prefix, encodeID(id)...)
+}
+
 // ------------------------------------------------------------------------
 
-// encodeTime converts the time to bytes
+// encodeTime converts the time to 8 bytes
 func encodeTime(t time.Time) []byte {
 	b := []byte{}
 	binary.BigEndian.PutUint64(b, uint64(t.Unix()))
+
+	return b
+}
+
+// encodeID converts the thread ID to 4 bytes
+func encodeID(id uint32) []byte {
+	b := []byte{}
+	binary.BigEndian.PutUint32(b, id)
 
 	return b
 }

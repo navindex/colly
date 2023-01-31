@@ -47,7 +47,7 @@ func (s *stgVisit) Clear() error {
 
 // Len returns the number of request visits in the BadgerDB visit storage.
 func (s *stgVisit) Len() (uint, error) {
-	return s.s.Len()
+	return s.s.Len(nil)
 
 }
 

@@ -312,7 +312,7 @@ func Test_stgVisit_PastVisits(t *testing.T) {
 				},
 			},
 			args: args{
-				key: "pqr",
+				key: "abc",
 			},
 			want:    3,
 			wantErr: false,

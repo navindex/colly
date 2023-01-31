@@ -236,16 +236,21 @@ func (s *stgBase) GetBool(key []byte) (bool, error) {
 // ------------------------------------------------------------------------
 
 // Len returns the number of entries in the BadgerDB storage.
-func (s *stgBase) Len() (uint, error) {
+func (s *stgBase) Len(prefix []byte) (uint, error) {
 	var count uint
 
+	if prefix == nil {
+		prefix = []byte{}
+	}
+
 	opt := badger.DefaultIteratorOptions
+	p := append(s.config.prefix, prefix...)
 
 	if err := s.db.dbh.View(func(txn *badger.Txn) error {
 		it := txn.NewIterator(opt)
 		defer it.Close()
 
-		for it.Rewind(); it.ValidForPrefix(s.config.prefix); it.Next() {
+		for it.Rewind(); it.ValidForPrefix(p); it.Next() {
 			count++
 		}
 

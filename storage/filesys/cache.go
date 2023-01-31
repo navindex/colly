@@ -31,6 +31,8 @@ const (
 // ------------------------------------------------------------------------
 
 // NewCacheStorage returns a pointer to a newly created filesystem cache storage.
+// After the path, the first optional argument is the directory permission,
+// the second is the file permission.
 func NewCacheStorage(path string, dirAndFilePermissions ...fs.FileMode) (*stgCache, error) {
 	if path == "" {
 		return nil, storage.ErrBlankPath

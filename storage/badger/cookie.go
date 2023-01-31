@@ -48,7 +48,7 @@ func (s *stgCookie) Clear() error {
 
 // Len returns the number of request cookies in the BadgerDB cookie storage.
 func (s *stgCookie) Len() (uint, error) {
-	return s.s.Len()
+	return s.s.Len(nil)
 }
 
 // ------------------------------------------------------------------------

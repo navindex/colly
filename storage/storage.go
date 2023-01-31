@@ -31,5 +31,6 @@ var (
 	ErrMissingParams    = errors.New("storage parameters are missing")
 	ErrMissingStatement = errors.New("statement is missing")
 	ErrInvalidLength    = errors.New("max queue length must be positive or zero for no limit")
+	ErrInvalidNumber    = errors.New("minumum one item should be requested from the queue")
 	ErrMissingCmd       = func(cmd string) error { return fmt.Errorf("%s command is missing", cmd) }
 )
