@@ -28,6 +28,7 @@ type CollectorConfig struct {
 	// Each filter can be an including or excluding filter. Blank filters will be ignored.
 	// Excluding filters will be evaluated before including filters.
 	*Filter `json:"filter" bson:"filter,omitempty"`
+
 	// MaxDepth limits the recursion depth of visited URLs.
 	MaxDepth uint `json:"max_depth" bson:"max_depth,omitempty"`
 	// MaxBodySize is the limit of the retrieved response body in bytes. 0 means unlimited.
@@ -58,6 +59,7 @@ type CollectorConfig struct {
 	// MaxThreads is the default number of the maximum allowed concurrent requests of the matching domains.
 	// This value is used only if none of filtered configurations is a match.
 	MaxThreads uint `json:"max_threads" bson:"max_threads,omitempty"`
+
 	// ParseByStatus is a callback function to enable or disable parsing HTTP responses by status codes.
 	// If blank, the collector will parse only successful HTTP responses.
 	ParseStatusCallback `json:"parse_status_callback" bson:"parse_status_callback,omitempty"`
@@ -65,9 +67,13 @@ type CollectorConfig struct {
 	UserAgentCallback `json:"user_agent_callback" bson:"user_agent_callback,omitempty"`
 	// HeaderCallback is a callback to create common headers for each request.
 	HeaderCallback `json:"header_callback" bson:"header_callback,omitempty"`
+
+	// Queue is a the underlying storage of the job queue.
+	// If missing, an in-memory storage will be created.
+	Queue `json:"queue" bson:"queue,omitempty"`
 	// Cache attaches a cache service to keep a local copy of the responses.
 	Cache `json:"cache" bson:"cache,omitempty"`
-	// TODO create CookieJar interface
+	// CookieJar manages storage and use of cookies in HTTP requests.
 	CookieJar http.CookieJar `json:"cookie_jar" bson:"cookie_jar,omitempty"`
 	// Parser represents an URL parser service.
 	Parser `json:"parser" bson:"parser,omitempty"`
@@ -77,17 +83,19 @@ type CollectorConfig struct {
 	Tracer `json:"tracer" bson:"tracer,omitempty"`
 	// Logger logs the collector events.
 	Logger `json:"logger" bson:"logger,omitempty"`
-	// FilteredConfigs is a list of configuration settings that based on URL filter criteria.
-	FilteredConfigs []*FilteredConfig `json:"filtered_configs" bson:"filtered_configs,omitempty"`
+
+	// SubConfigs is a list of configuration settings that based on URL filter criteria.
+	SubConfigs []*SubConfig `json:"filtered_configs" bson:"filtered_configs,omitempty"`
 }
 
-// FilteredConfig represents configuration settings that based on URL filter criteria.
-// These settings overwrite similar settings in CollectorConfig if the URL mathces the filter.
-type FilteredConfig struct {
+// SubConfig represents configuration settings that based on URL filter criteria.
+// These settings overwrite similar settings in CollectorConfig if the URL matches the filter.
+type SubConfig struct {
 	// Filter represents a number of URL filter criteria.
 	// Each filter can be an including or excluding filter. Blank filters will be ignored.
 	// Excluding filters will be evaluated before including filters.
 	*Filter `json:"filter" bson:"filter,omitempty"`
+
 	// Delay is the duration to wait before creating a new request.
 	Delay time.Duration `json:"delay" bson:"delay,omitempty"`
 	// RandomDelay is the extra randomized duration to wait added to Delay before creating a new request.
@@ -207,13 +215,13 @@ func NewConfig() *CollectorConfig {
 
 // ------------------------------------------------------------------------
 
-// NewFilteredConfig returns a pointer to a newly created configuration settings that matches the filter.
-func NewFilteredConfig(filter *Filter, delay time.Duration, randomDelay time.Duration, maxThreads uint) (*FilteredConfig, error) {
+// NewSubConfig returns a pointer to a newly created configuration settings that matches the filter.
+func NewSubConfig(filter *Filter, delay time.Duration, randomDelay time.Duration, maxThreads uint) (*SubConfig, error) {
 	if filter == nil {
 		return nil, ErrNoFilterDefined
 	}
 
-	return &FilteredConfig{
+	return &SubConfig{
 		Filter:      filter,
 		Delay:       delay,
 		RandomDelay: randomDelay,
@@ -396,5 +404,14 @@ func (c *CollectorConfig) hasLogger() bool {
 func (c *CollectorConfig) logError(level LogLevel, err error) {
 	if c.hasLogger() {
 		c.Logger.LogError(level, err)
+	}
+}
+
+func (c *CollectorConfig) mainConfig() *SubConfig {
+	return &SubConfig{
+		Filter:      c.Filter,
+		Delay:       c.Delay,
+		RandomDelay: c.RandomDelay,
+		MaxThreads:  c.MaxThreads,
 	}
 }

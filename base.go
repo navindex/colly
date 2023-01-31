@@ -32,20 +32,22 @@ type MaxVisitReachedError struct {
 
 // Errors
 var (
+	ErrAbortedAfterHeaders = errors.New("aborted after receiving response headers") // ErrAbortedAfterHeaders is returned when OnResponseHeaders aborts the transfer.
+	ErrCacheNoExpHandler   = errors.New("missing cache expiry handler")             // ErrCacheNoExpHandler is thrown when an attempt was made to create a Cache without an expiry handler.
+	ErrCacheNoPath         = errors.New("file cache path is blank")                 // ErrCacheNoPath is thrown when an attempt was made to create a file cache with a blank path.
+	ErrCacheNoStorage      = errors.New("missing cache storage")                    // ErrCacheNoStorage is thrown when an attempt was made to create a cache without a storage.
+	ErrDecodeNoData        = errors.New("nothing to decode")                        // ErrNoData is thrown when an attempt was made to decode nil data.
+	ErrEmptyProxyURL       = errors.New("proxy URL list is empty")                  // ErrEmptyProxyURL is thrown for empty Proxy URL list.
 	ErrForbiddenDomain     = errors.New("forbidden domain")                         // ErrForbiddenDomain is thrown when visiting a domain that is not allowed.
-	ErrMissingURL          = errors.New("missing URL")                              // ErrMissingURL is thrown when the URL is missing.
-	ErrNoHTTPRequest       = errors.New("HTTP Request reference is nil")            // ErrNoHTTPRequest is thrown when the HTTP request pointer is set to nil.
-	ErrNoCollector         = errors.New("Collector reference is nil")               // ErrNoCollector is thrown when the Collector pointer is set to nil.
 	ErrMaxDepth            = errors.New("max depth limit reached")                  // ErrMaxDepth is thrown for exceeding max depth.
-	ErrRobotsTxtBlocked    = errors.New("URL blocked by robots.txt")                // ErrRobotsTxtBlocked is thrown for robots.txt errors.
+	ErrMissingURL          = errors.New("missing URL")                              // ErrMissingURL is thrown when the URL is missing.
+	ErrNoCollector         = errors.New("missing collector")                        // ErrNoCollector is thrown when the collector pointer is set to nil.
 	ErrNoCookieJar         = errors.New("cookie jar not available")                 // ErrNoCookieJar is thrown for missing cookie jar.
 	ErrNoFilterDefined     = errors.New("no filter defined")                        // ErrNoFilterDefined is thrown when no valid filter was provided.
-	ErrEmptyProxyURL       = errors.New("proxy URL list is empty")                  // ErrEmptyProxyURL is thrown for empty Proxy URL list.
-	ErrAbortedAfterHeaders = errors.New("aborted after receiving response headers") // ErrAbortedAfterHeaders is returned when OnResponseHeaders aborts the transfer.
+	ErrNoHTTPRequest       = errors.New("HTTP Request reference is nil")            // ErrNoHTTPRequest is thrown when the HTTP request pointer is set to nil.
+	ErrNoJobDecoder        = errors.New("missing job decoder function")             // ErrNoJobDecoder is thrown when an attempt was made to create a job queue without a decoder function.
 	ErrQueueFull           = errors.New("maximum queue size reached")               // ErrQueueFull is returned when the queue is full.
-	ErrCacheNoStorage      = errors.New("missing cache storage")                    // ErrCacheNoStorage is thrown when an attempt was made to create a Cache without a storage.
-	ErrCacheNoPath         = errors.New("file cache path is blank")                 // ErrCacheNoPath is thrown when an attempt was made to create a file cache with a blank path.
-	ErrCacheNoExpHandler   = errors.New("missing cache expiry handler")             // ErrCacheNoExpHandler is thrown when an attempt was made to create a Cache without an expiry handler.
+	ErrRobotsTxtBlocked    = errors.New("URL blocked by robots.txt")                // ErrRobotsTxtBlocked is thrown for robots.txt errors.
 )
 
 // ------------------------------------------------------------------------
